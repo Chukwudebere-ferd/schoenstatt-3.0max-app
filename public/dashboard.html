@@ -1,89 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Schoenstatt - Dashboard</title>
-  <link rel="stylesheet" href="./styles/dashboard.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schoenstatt Youth Feed</title>
+  <link rel="stylesheet" href="./styles/dashboard.css">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <div class="dashboard-container">
-    
-    <!-- Navigation Tabs -->
-    <nav class="nav-tabs">
-      <button class="tab-btn active" data-tab="home"><i class="fa-solid fa-house"></i> Home</button>
-      <button class="tab-btn" data-tab="events"><i class="fa-solid fa-calendar-days"></i> Events</button>
-      <button class="tab-btn" data-tab="photos"><i class="fa-solid fa-image"></i> Photos</button>
-      <button class="tab-btn" data-tab="profile"><i class="fa-solid fa-user"></i> Profile</button>
-    </nav>
+  <header class="topbar">
+    <img src="https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg" alt="Schoenstatt Logo" class="logo">
+    <h1>SCHOENSTATT <span>NIGERIA</span></h1>
+    <i class="fas fa-search"></i>
+  </header>
 
-    <!-- Error / Info Messages -->
-    <div id="messageBox"></div>
+  <nav class="tabs">
+    <button class="active">Posts</button>
+    <button>Events</button>
+    <button>Photos</button>
+  </nav>
 
-    <!-- Home Section -->
-    <section id="home" class="tab-content active">
-      <!-- Create Post -->
-      <div class="create-post">
-        <textarea id="postText" placeholder="What's on your mind?"></textarea>
-        <input type="file" id="postImages" multiple accept="image/*" />
-        <button id="uploadBtn">Post</button>
-        <div id="loader" class="loader hidden"></div>
-        <p id="errorMsg" class="error"></p>
-      </div>
+  <section class="create-post">
+    <div class="create-post">
+  <input id="postText" type="text" placeholder="What's on your mind?" />
+  <input id="postImages" type="file" accept="image/*" multiple hidden />
+  <button id="addImage"><i class="fas fa-image"></i></button>
+  <button id="submitPost" class="add-post"><i class="fas fa-plus"></i></button>
+</div>
+  </section>
 
-      <!-- Search Bar -->
-      <input type="text" id="searchBar" placeholder="Search posts..." />
+  <main>
+  <section id="posts">Posts feed...</section>
+  <section id="events" class="hidden">Events feed...</section>
+  <section id="photos" class="hidden">Photos gallery...</section>
 
-      <!-- Feed Container -->
-      <div id="postsContainer"></div>
-    </section>
+  <section id="home" class="hidden">Home page...</section>
+  <section id="videos" class="hidden">Videos page...</section>
+  <section id="notifications" class="hidden">Notifications...</section>
+  <section id="profile" class="hidden">User profile...</section>
+</main>
 
-    <!-- Events Section -->
-    <section id="events" class="tab-content">
-      <h2>Events</h2>
-      <div class="events-container">
-        <h3>Upcoming</h3>
-        <div class="event-card">
-          <img src="https://picsum.photos/200/100" alt="event" />
-          <p>Marian Pilgrimage - Friday</p>
-        </div>
 
-        <h3>Past</h3>
-        <div class="event-card">
-          <img src="https://picsum.photos/200/100" alt="event" />
-          <p>Youth Gathering - Last Week</p>
-        </div>
-      </div>
-    </section>
+  <nav class="bottom-nav">
+    <i class="fas fa-home active"></i>
+    <i class="fas fa-play-circle"></i>
+    <i class="fas fa-bell"></i>
+    <i class="fas fa-user"></i>
+  </nav>
 
-    <!-- Photos Section -->
-    <section id="photos" class="tab-content">
-      <h2>Photos</h2>
-      <div class="photo-grid">
-        <img src="https://picsum.photos/200" alt="photo" />
-        <img src="https://picsum.photos/201" alt="photo" />
-        <img src="https://picsum.photos/202" alt="photo" />
-        <img src="https://picsum.photos/203" alt="photo" />
-      </div>
-    </section>
-
-    <!-- Profile Section -->
-    <section id="profile" class="tab-content">
-      <h2>Profile</h2>
-      <div class="profile-card">
-        <img src="https://picsum.photos/150" alt="profile" class="profile-img" />
-        <h3 id="profileName">Amaka Okafor</h3>
-        <ul>
-          <li><i class="fa-solid fa-user"></i> My Profile</li>
-          <li><i class="fa-solid fa-bookmark"></i> My Bookmarks</li>
-          <li><i class="fa-solid fa-gear"></i> Settings</li>
-          <li><i class="fa-solid fa-right-from-bracket"></i> Logout</li>
-        </ul>
-      </div>
-    </section>
-  </div>
-
-  <script src="./scripts/dashboard.js" type="module"></script>
+  <script type="module"  src="./scripts/dashboard.js"></script>
 </body>
 </html>
