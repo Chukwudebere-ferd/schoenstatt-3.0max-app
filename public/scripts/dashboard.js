@@ -817,18 +817,19 @@ searchIcon.addEventListener("click", () => {
   }
 });
 
-// Optional: live search
 searchInput.addEventListener("input", (e) => {
   const query = e.target.value.toLowerCase();
   filterPosts(query);
 });
 
-// Example filter function for posts
+// Filter posts by username or post text
 function filterPosts(query) {
   const posts = document.querySelectorAll(".post");
   posts.forEach((post) => {
-    const text = post.querySelector(".post-text").textContent.toLowerCase();
-    if (text.includes(query)) {
+    const username = post.querySelector(".username")?.textContent.toLowerCase() || "";
+    const postText = post.querySelector(".post-text")?.textContent.toLowerCase() || "";
+    
+    if (username.includes(query) || postText.includes(query)) {
       post.style.display = "";
     } else {
       post.style.display = "none";
