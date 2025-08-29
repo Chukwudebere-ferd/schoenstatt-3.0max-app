@@ -382,33 +382,19 @@ function renderPostElement(id, post) {
   const article = document.createElement("article");
   article.className = "post";
   article.id = `post-${id}`;
-  article.style.padding = "12px";
-  article.style.borderBottom = "1px solid #eee";
 
   // ================= HEADER =================
   const header = document.createElement("div");
   header.className = "post-header";
-  header.style.display = "flex";
-  header.style.alignItems = "center";
-  header.style.gap = "8px";
-  header.style.justifyContent = "space-between";
 
   const left = document.createElement("div");
-  left.style.display = "flex";
-  left.style.alignItems = "center";
-  left.style.gap = "8px";
-
   const nameEl = document.createElement("strong");
   nameEl.className = "username";
-  nameEl.textContent = post.username ? post.username : "Loading...";
-
+  nameEl.textContent = post.username || "Loading...";
   const verifiedHolder = document.createElement("span");
   verifiedHolder.className = "verified-holder";
-
   const timeSpan = document.createElement("span");
-  timeSpan.style.marginLeft = "8px";
-  timeSpan.style.color = "#666";
-  timeSpan.style.fontSize = "12px";
+  timeSpan.className = "post-time";
   timeSpan.textContent = timeAgo(post.createdAt);
 
   left.appendChild(nameEl);
@@ -416,29 +402,19 @@ function renderPostElement(id, post) {
   left.appendChild(timeSpan);
 
   const right = document.createElement("div");
-  right.style.display = "flex";
-  right.style.alignItems = "center";
-  right.style.gap = "10px";
-
-  // Owner-only actions (edit/delete)
+  // owner-only actions
   const isOwner = auth.currentUser && post.uid === auth.currentUser.uid;
   if (isOwner) {
     const editBtn = document.createElement("button");
     editBtn.className = "edit-btn";
-    editBtn.title = "Edit post";
     editBtn.innerHTML = `<i class="fas fa-edit"></i>`;
-    editBtn.style.cursor = "pointer";
-
     const delBtn = document.createElement("button");
     delBtn.className = "delete-btn";
-    delBtn.title = "Delete post";
     delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
-    delBtn.style.cursor = "pointer";
-
     right.appendChild(editBtn);
     right.appendChild(delBtn);
 
-    // inline edit instead of prompt
+    // inline edit
     editBtn.addEventListener("click", () => {
       if (article.querySelector(".inline-edit-wrap")) return;
       const contentEl = article.querySelector("p.post-text");
@@ -494,8 +470,6 @@ function renderPostElement(id, post) {
   const textP = document.createElement("p");
   textP.className = "post-text";
   textP.textContent = post.text || "";
-  textP.style.marginTop = "8px";
-  textP.style.whiteSpace = "pre-wrap";
 
   // ================= IMAGES =================
   const imgs = post.images || [];
@@ -507,19 +481,11 @@ function renderPostElement(id, post) {
     imagesWrap.style.marginTop = "8px";
     imagesWrap.style.gridTemplateColumns = imgs.length > 1 ? "1fr 1fr" : "1fr";
   }
-
   imgs.forEach((src, i) => {
-    const imgWrap = document.createElement("div");
-    imgWrap.style.position = "relative";
     const imgEl = document.createElement("img");
     imgEl.src = src;
     imgEl.alt = `post image ${i + 1}`;
-    imgEl.style.width = "100%";
-    imgEl.style.display = "block";
-    imgEl.style.borderRadius = "8px";
-    imgEl.style.objectFit = "cover";
-    imgEl.style.maxHeight = "360px";
-    imgEl.style.cursor = "pointer";
+    imgEl.className = "post-img";
     imgEl.addEventListener("click", () => {
       const modal = document.getElementById("imageModal");
       const modalImg = document.getElementById("modalImage");
@@ -528,42 +494,18 @@ function renderPostElement(id, post) {
         modal.style.display = "block";
         modalImg.src = src;
         if (downloadLink) downloadLink.href = src;
-      } else {
-        window.open(src, "_blank");
       }
     });
-    imgWrap.appendChild(imgEl);
-    if (i === 0 && imgs.length > 1) {
-      const indicator = document.createElement("div");
-      indicator.textContent = `1/${imgs.length}`;
-      indicator.style.position = "absolute";
-      indicator.style.right = "8px";
-      indicator.style.bottom = "8px";
-      indicator.style.background = "rgba(0,0,0,0.6)";
-      indicator.style.color = "#fff";
-      indicator.style.padding = "4px 8px";
-      indicator.style.borderRadius = "10px";
-      indicator.style.fontSize = "12px";
-      imgWrap.appendChild(indicator);
-    }
-    imagesWrap.appendChild(imgWrap);
+    imagesWrap.appendChild(imgEl);
   });
 
   // ================= ACTIONS =================
   const actions = document.createElement("div");
   actions.className = "post-actions";
-  actions.style.display = "flex";
-  actions.style.gap = "12px";
-  actions.style.marginTop = "10px";
-  actions.style.alignItems = "center";
 
-  // Like button
+  // like button
   const likeBtn = document.createElement("button");
   likeBtn.className = "like-btn";
-  likeBtn.style.display = "flex";
-  likeBtn.style.alignItems = "center";
-  likeBtn.style.gap = "6px";
-
   const heart = document.createElement("i");
   const likedByArr = post.likedBy || [];
   const userHasLiked = auth.currentUser && likedByArr.includes(auth.currentUser.uid);
@@ -571,10 +513,10 @@ function renderPostElement(id, post) {
   heart.style.color = userHasLiked ? "red" : "#333";
   const likeCount = document.createElement("span");
   likeCount.textContent = `${likedByArr.length || 0}`;
-
   likeBtn.appendChild(heart);
   likeBtn.appendChild(likeCount);
 
+  // ✅ click to like/unlike
   likeBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!auth.currentUser) return alert("Sign in to like posts.");
@@ -592,32 +534,65 @@ function renderPostElement(id, post) {
     }
   });
 
-  // ================= COMMENTS ==================
+  // ✅ click on like count → show modal with users
+  likeCount.style.cursor = "pointer";
+  likeCount.addEventListener("click", async () => {
+    const postRef = doc(db, "posts", id);
+    const fresh = await getDoc(postRef);
+    const cur = fresh.exists() ? (fresh.data().likedBy || []) : [];
+    if (!cur.length) return alert("No likes yet.");
+    const overlay = document.createElement("div");
+    overlay.className = "likes-overlay";
+    const box = document.createElement("div");
+    box.className = "likes-box";
+    const close = document.createElement("span");
+    close.className = "close-btn";
+    close.textContent = "×";
+    box.appendChild(close);
+    cur.forEach(async (uid) => {
+      const u = await fetchUserProfile(uid);
+      const row = document.createElement("div");
+      row.className = "like-user";
+      row.textContent = u?.username || "User";
+      if (u?.verified) row.appendChild(blueCheckSVG());
+      box.appendChild(row);
+    });
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    close.addEventListener("click", () => overlay.remove());
+  });
+
+  // comment button
   const commentBtn = document.createElement("button");
   commentBtn.className = "comment-btn";
-  commentBtn.style.cursor = "pointer";
   commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.commentsCount || 0)}`;
-  actions.appendChild(commentBtn);
 
+  // share button
+  const shareBtn = document.createElement("button");
+  shareBtn.className = "share-btn";
+  shareBtn.innerHTML = `<i class="fas fa-share"></i>`;
+
+  actions.appendChild(likeBtn);
+  actions.appendChild(commentBtn);
+  actions.appendChild(shareBtn);
+
+  // ================= COMMENTS ==================
   const commentsSection = document.createElement("div");
   commentsSection.className = "comments";
   commentsSection.style.display = "none";
-  commentsSection.style.marginTop = "8px";
 
-  // comments list
   const commentsList = document.createElement("div");
   commentsList.className = "comments-list";
   commentsSection.appendChild(commentsList);
 
-  // comment form
   const commentForm = document.createElement("form");
+  commentForm.className = "comment-form";
   commentForm.innerHTML = `
-    <input type="text" placeholder="Write a comment..." />
-    <button type="submit">Post</button>
+    <input type="text" class="comment-input" placeholder="Write a comment..." />
+    <button type="submit" class="comment-submit">Post</button>
   `;
   commentsSection.appendChild(commentForm);
 
-  // toggle
   commentBtn.addEventListener("click", () => {
     commentsSection.style.display =
       commentsSection.style.display === "none" ? "block" : "none";
@@ -630,7 +605,6 @@ function renderPostElement(id, post) {
     const text = commentInput.value.trim();
     if (!text) return;
     if (!auth.currentUser) return alert("You must be logged in to comment.");
-
     try {
       const profile = await fetchUserProfile(auth.currentUser.uid);
       await addDoc(collection(db, "posts", id, "comments"), {
@@ -657,21 +631,23 @@ function renderPostElement(id, post) {
       const comment = c.data();
       const div = document.createElement("div");
       div.className = "comment";
-
+      const header = document.createElement("div");
+      header.className = "comment-header";
       const name = document.createElement("strong");
       name.textContent = comment.displayName || "Anonymous";
-      div.appendChild(name);
-      if (comment.verified) {
-        div.appendChild(blueCheckSVG());
-      }
-      div.append(`: ${comment.text}`);
+      header.appendChild(name);
+      if (comment.verified) header.appendChild(blueCheckSVG());
+      div.appendChild(header);
+      const text = document.createElement("span");
+      text.className = "comment-text";
+      text.textContent = comment.text;
+      div.appendChild(text);
 
-      // ✅ delete own comment
+      // delete own comment
       if (auth.currentUser && comment.uid === auth.currentUser.uid) {
         const delBtn = document.createElement("button");
+        delBtn.className = "delete-comment-btn";
         delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
-        delBtn.style.marginLeft = "8px";
-        delBtn.style.cursor = "pointer";
         delBtn.addEventListener("click", async () => {
           if (!confirm("Delete this comment?")) return;
           try {
@@ -683,59 +659,27 @@ function renderPostElement(id, post) {
         });
         div.appendChild(delBtn);
       }
-
       commentsList.appendChild(div);
       count++;
     });
     commentBtn.innerHTML = `<i class="far fa-comment"></i> ${count}`;
   });
 
-  // ================= SHARE ==================
-  const shareBtn = document.createElement("button");
-  shareBtn.className = "share-btn";
-  shareBtn.style.cursor = "pointer";
-  shareBtn.innerHTML = `<i class="fas fa-share"></i>`;
-  shareBtn.addEventListener("click", async () => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}#post-${id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: post.username || "Post",
-          text: post.text || "",
-          url: shareUrl,
-        });
-      } catch {}
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        alert("Post link copied to clipboard!");
-      } catch {
-        prompt("Copy the post link:", shareUrl);
-      }
-    }
-  });
-
-  actions.appendChild(likeBtn);
-  actions.appendChild(commentBtn);
-  actions.appendChild(shareBtn);
-
-  // ✅ Append everything in correct order
+  // append in order
   article.appendChild(header);
   article.appendChild(textP);
   if (imgs.length) article.appendChild(imagesWrap);
   article.appendChild(actions);
   article.appendChild(commentsSection);
 
-  // patch username + verified
+  // patch username
   if (post.uid) {
-    fetchUserProfile(post.uid)
-      .then((u) => {
-        if (!u) return;
-        nameEl.textContent = u.username || post.username || "User";
-        verifiedHolder.innerHTML = "";
-        if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
-      })
-      .catch((err) => console.warn("Failed to patch user info:", err));
+    fetchUserProfile(post.uid).then((u) => {
+      if (!u) return;
+      nameEl.textContent = u.username || post.username || "User";
+      verifiedHolder.innerHTML = "";
+      if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
+    });
   }
 
   return article;
@@ -785,7 +729,7 @@ document.addEventListener("DOMContentLoaded", () => {
     icon.addEventListener("click", () => {
       bottomTabs.forEach(ic => ic.classList.remove("active"));
       icon.classList.add("active");
-      if (index === 0) showSection("home");
+      if (index === 0) window.location.href = "dashboard.html";
       if (index === 1) showSection("videos");
       if (index === 2) showSection("notifications");
       if (index === 3) showSection("profile");
