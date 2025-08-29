@@ -385,7 +385,7 @@ function renderPostElement(id, post) {
   article.style.padding = "12px";
   article.style.borderBottom = "1px solid #eee";
 
-  // header
+  // ================= HEADER =================
   const header = document.createElement("div");
   header.className = "post-header";
   header.style.display = "flex";
@@ -422,7 +422,6 @@ function renderPostElement(id, post) {
 
   // Owner-only actions (edit/delete)
   const isOwner = auth.currentUser && post.uid === auth.currentUser.uid;
-
   if (isOwner) {
     const editBtn = document.createElement("button");
     editBtn.className = "edit-btn";
@@ -441,7 +440,7 @@ function renderPostElement(id, post) {
 
     // inline edit instead of prompt
     editBtn.addEventListener("click", () => {
-      if (article.querySelector(".inline-edit-wrap")) return; // already editing
+      if (article.querySelector(".inline-edit-wrap")) return;
       const contentEl = article.querySelector("p.post-text");
       const wrap = document.createElement("div");
       wrap.className = "inline-edit-wrap";
@@ -465,7 +464,6 @@ function renderPostElement(id, post) {
           console.error("Edit failed:", err);
           alert("Failed to save changes.");
         } finally {
-          // let onSnapshot re-render; but also local immediate UX:
           contentEl.textContent = newText;
           contentEl.style.display = "";
           wrap.remove();
@@ -492,14 +490,14 @@ function renderPostElement(id, post) {
   header.appendChild(left);
   header.appendChild(right);
 
-  // text
+  // ================= TEXT =================
   const textP = document.createElement("p");
   textP.className = "post-text";
   textP.textContent = post.text || "";
   textP.style.marginTop = "8px";
   textP.style.whiteSpace = "pre-wrap";
 
-  // images
+  // ================= IMAGES =================
   const imgs = post.images || [];
   const imagesWrap = document.createElement("div");
   imagesWrap.className = "post-images";
@@ -551,7 +549,7 @@ function renderPostElement(id, post) {
     imagesWrap.appendChild(imgWrap);
   });
 
-  // actions
+  // ================= ACTIONS =================
   const actions = document.createElement("div");
   actions.className = "post-actions";
   actions.style.display = "flex";
@@ -582,7 +580,6 @@ function renderPostElement(id, post) {
     if (!auth.currentUser) return alert("Sign in to like posts.");
     const postRef = doc(db, "posts", id);
     try {
-      // do not rely on stale closure; just try both ways based on membership
       const fresh = await getDoc(postRef);
       const cur = fresh.exists() ? (fresh.data().likedBy || []) : [];
       if (cur.includes(auth.currentUser.uid)) {
@@ -595,36 +592,105 @@ function renderPostElement(id, post) {
     }
   });
 
-  // View likers (overlay)
-  likeCount.style.cursor = "pointer";
-  likeCount.title = "View likers";
-  likeCount.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    try {
-      const snap = await getDoc(doc(db, "posts", id));
-      const liked = snap.exists() ? (snap.data().likedBy || []) : [];
-      const items = [];
-      for (const uid of liked) {
-        const up = await fetchUserProfile(uid);
-        const fakeUser = { username: "User", verified: false };
-        items.push({
-          username: up?.username || fakeUser.username,
-          verified: !!up?.verified
-        });
-      }
-      showLikersOverlay(items);
-    } catch (err) {
-      console.error("Failed to fetch likers:", err);
-    }
-  });
-
-  // Comments (toggle area)
+  // ================= COMMENTS ==================
   const commentBtn = document.createElement("button");
   commentBtn.className = "comment-btn";
   commentBtn.style.cursor = "pointer";
-  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.comments || []).length || 0}`;
+  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.commentsCount || 0)}`;
+  actions.appendChild(commentBtn);
 
-  // Share
+  const commentsSection = document.createElement("div");
+  commentsSection.className = "comments";
+  commentsSection.style.display = "none";
+  commentsSection.style.marginTop = "8px";
+
+  // comments list
+  const commentsList = document.createElement("div");
+  commentsList.className = "comments-list";
+  commentsSection.appendChild(commentsList);
+
+  // comment form
+  const commentForm = document.createElement("form");
+  commentForm.innerHTML = `
+    <input type="text" placeholder="Write a comment..." />
+    <button type="submit">Post</button>
+  `;
+  commentsSection.appendChild(commentForm);
+
+  // toggle
+  commentBtn.addEventListener("click", () => {
+    commentsSection.style.display =
+      commentsSection.style.display === "none" ? "block" : "none";
+  });
+
+  // add comment
+  commentForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const commentInput = commentForm.querySelector("input");
+    const text = commentInput.value.trim();
+    if (!text) return;
+    if (!auth.currentUser) return alert("You must be logged in to comment.");
+
+    try {
+      const profile = await fetchUserProfile(auth.currentUser.uid);
+      await addDoc(collection(db, "posts", id, "comments"), {
+        uid: auth.currentUser.uid,
+        displayName: profile?.username || auth.currentUser.displayName || "Anonymous",
+        verified: !!profile?.verified,
+        text,
+        createdAt: serverTimestamp(),
+      });
+      commentInput.value = "";
+    } catch (err) {
+      console.error("Failed to add comment:", err);
+      alert("Failed to add comment.");
+    }
+  });
+
+  // live comments
+  const commentsRef = collection(db, "posts", id, "comments");
+  const commentsQuery = query(commentsRef, orderBy("createdAt", "asc"));
+  onSnapshot(commentsQuery, (snapshot) => {
+    commentsList.innerHTML = "";
+    let count = 0;
+    snapshot.forEach((c) => {
+      const comment = c.data();
+      const div = document.createElement("div");
+      div.className = "comment";
+
+      const name = document.createElement("strong");
+      name.textContent = comment.displayName || "Anonymous";
+      div.appendChild(name);
+      if (comment.verified) {
+        div.appendChild(blueCheckSVG());
+      }
+      div.append(`: ${comment.text}`);
+
+      // ✅ delete own comment
+      if (auth.currentUser && comment.uid === auth.currentUser.uid) {
+        const delBtn = document.createElement("button");
+        delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
+        delBtn.style.marginLeft = "8px";
+        delBtn.style.cursor = "pointer";
+        delBtn.addEventListener("click", async () => {
+          if (!confirm("Delete this comment?")) return;
+          try {
+            await deleteDoc(doc(db, "posts", id, "comments", c.id));
+          } catch (err) {
+            console.error("Failed to delete comment:", err);
+            alert("Failed to delete comment.");
+          }
+        });
+        div.appendChild(delBtn);
+      }
+
+      commentsList.appendChild(div);
+      count++;
+    });
+    commentBtn.innerHTML = `<i class="far fa-comment"></i> ${count}`;
+  });
+
+  // ================= SHARE ==================
   const shareBtn = document.createElement("button");
   shareBtn.className = "share-btn";
   shareBtn.style.cursor = "pointer";
@@ -633,8 +699,12 @@ function renderPostElement(id, post) {
     const shareUrl = `${window.location.origin}${window.location.pathname}#post-${id}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: post.username || "Post", text: post.text || "", url: shareUrl });
-      } catch { /* user cancelled */ }
+        await navigator.share({
+          title: post.username || "Post",
+          text: post.text || "",
+          url: shareUrl,
+        });
+      } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
@@ -649,88 +719,14 @@ function renderPostElement(id, post) {
   actions.appendChild(commentBtn);
   actions.appendChild(shareBtn);
 
-  // append header/text/images/actions
+  // ✅ Append everything in correct order
   article.appendChild(header);
   article.appendChild(textP);
   if (imgs.length) article.appendChild(imagesWrap);
   article.appendChild(actions);
+  article.appendChild(commentsSection);
 
-  // comment area
-  const commentArea = document.createElement("div");
-  commentArea.style.display = "none";
-  commentArea.style.marginTop = "8px";
-
-  const commentList = document.createElement("div");
-  // show current comments
-  (post.comments || []).forEach((c) => {
-    const cEl = document.createElement("p");
-    cEl.style.fontSize = "14px";
-    cEl.style.margin = "6px 0";
-    const who = c.username || "Anonymous";
-    cEl.innerHTML = `<strong>${who}</strong> ${c.verified ? blueCheckSVG().outerHTML : ""}: ${c.text}`;
-    commentList.appendChild(cEl);
-  });
-
-  const commentInputWrap = document.createElement("div");
-  commentInputWrap.style.display = "flex";
-  commentInputWrap.style.gap = "8px";
-  commentInputWrap.style.marginTop = "8px";
-
-  const commentInput = document.createElement("input");
-  commentInput.type = "text";
-  commentInput.placeholder = "Write a comment...";
-  commentInput.style.flex = "1";
-
-  const commentSend = document.createElement("button");
-  commentSend.innerText = "Send";
-  commentSend.addEventListener("click", async () => {
-    const txt = (commentInput.value || "").trim();
-    if (!txt) return;
-    if (!auth.currentUser) { alert("Sign in to comment."); return; }
-
-    // Use profile from users/{uid} for username/verified
-    let profile = currentUserProfile;
-    if (!profile) profile = await fetchUserProfile(auth.currentUser.uid);
-
-    try {
-      await updateDoc(doc(db, "posts", id), {
-        comments: arrayUnion({
-          uid: auth.currentUser.uid,
-          username: profile?.username || resolveDisplayNameForPost(null, auth.currentUser),
-          verified: !!profile?.verified,
-          text: txt,
-          createdAt: serverTimestamp()
-        })
-      });
-      commentInput.value = "";
-      // Optimistic: also append locally until snapshot arrives
-      const cEl = document.createElement("p");
-      cEl.style.fontSize = "14px";
-      cEl.style.margin = "6px 0";
-      const who = profile?.username || resolveDisplayNameForPost(null, auth.currentUser);
-      cEl.innerHTML = `<strong>${who}</strong> ${profile?.verified ? blueCheckSVG().outerHTML : ""}: ${txt}`;
-      commentList.appendChild(cEl);
-      // bump button count locally
-      const currentCount = parseInt(commentBtn.textContent.replace(/\D/g,"")) || 0;
-      commentBtn.innerHTML = `<i class="far fa-comment"></i> ${currentCount + 1}`;
-    } catch (err) {
-      console.error("Failed to add comment:", err);
-      alert("Failed to add comment.");
-    }
-  });
-
-  commentInputWrap.appendChild(commentInput);
-  commentInputWrap.appendChild(commentSend);
-
-  commentArea.appendChild(commentList);
-  commentArea.appendChild(commentInputWrap);
-  article.appendChild(commentArea);
-
-  commentBtn.addEventListener("click", () => {
-    commentArea.style.display = commentArea.style.display === "none" ? "block" : "none";
-  });
-
-  // patch username + verified asynchronously (non-blocking)
+  // patch username + verified
   if (post.uid) {
     fetchUserProfile(post.uid)
       .then((u) => {
@@ -739,13 +735,13 @@ function renderPostElement(id, post) {
         verifiedHolder.innerHTML = "";
         if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
       })
-      .catch((err) => {
-        console.warn("Failed to patch user info:", err);
-      });
+      .catch((err) => console.warn("Failed to patch user info:", err));
   }
 
   return article;
 }
+
+
 
 /* ========== Image modal safe handlers (if in DOM) ========= */
 const closeModalBtn = document.getElementById("closeModal");

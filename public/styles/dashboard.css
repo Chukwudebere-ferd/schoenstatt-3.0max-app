@@ -93,57 +93,94 @@ body {
 
 .post {
   background: #fff;
-  border-radius: 10px;
-  margin: 15px;
-  padding: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 8px;
 }
 
 .post-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  align-items: center;
+  font-weight: bold;
+  margin-bottom: 8px;
 }
 
-.post-header h3 {
-  margin: 0;
-  font-size: 16px;
+.username {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.verified {
+  color: #1f43d5; /* brand blue */
+  font-size: 0.9em;
 }
 
 .post-images {
-  margin-top: 10px;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
 }
 
-.post-images img {
+.post-images.multi {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.post-image {
   width: 100%;
-  border-radius: 8px;
-}
-
-.image-indicator {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0,0,0,0.6);
-  color: white;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 12px;
+  border-radius: 6px;
 }
 
 .post-actions {
   display: flex;
-  justify-content: space-around;
+  gap: 15px;
+  margin: 8px 0;
+  font-size: 1.3em;
+}
+
+.comments-section {
   margin-top: 10px;
 }
 
-.post-actions button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
+.comments-list {
+  margin-bottom: 5px;
 }
+
+.comment {
+  font-size: 0.9em;
+  margin-bottom: 3px;
+}
+
+.comment-user {
+  font-weight: bold;
+  margin-right: 5px;
+}
+
+.comment-input {
+  display: flex;
+  gap: 5px;
+}
+
+.comment-input input {
+  flex: 1;
+  padding: 5px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.comment-input button {
+  padding: 5px 10px;
+  border: none;
+  background: #1f43d5;
+  color: white;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
 
 
 
@@ -176,22 +213,29 @@ body {
   font-weight: bold;
 }
 .modal {
-  position: fixed;
+  position: absolute;
   top:0; left:0; width:100%; height:100%;
   background: rgba(0,0,0,0.8);
   display:flex; align-items:center; justify-content:center;
   z-index:9999;
 }
 .modal img {
-  max-width:90%;
+  max-width:100%;
   max-height:80%;
   border-radius:10px;
+  position: relative;
+  transform: translate(-50%, -50%);
+  left:50%; 
+  top:50%;
 }
 #closeModal {
   position:absolute; top:20px; right:30px;
   font-size:30px; color:#fff; cursor:pointer;
 }
 #downloadImage {
-  position:absolute; bottom:30px; right:30px;
-  color:white; font-size:24px; text-decoration:none;
+  position:absolute;
+   bottom:30px; 
+   right:30px;
+  color:white; font-size:24px; 
+  text-decoration:none;
 }
