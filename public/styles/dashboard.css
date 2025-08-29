@@ -71,13 +71,40 @@ body {
 }
 
 /* ========= Create Post ========= */
+/* Fix Create Post layout so previews appear below input */
 .create-post {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column; /* stack input/button and previews vertically */
+  align-items: stretch;   /* make input/button stretch full width */
+  gap: 8px;               /* spacing between input/button and preview box */
   padding: 12px;
   border-bottom: 1px solid #ddd;
   background: #fff;
+}
+
+.create-post > .create-post-input {
+  display: flex;
+  align-items: center;
+  gap: 5px; /* spacing between input and button */
+}
+
+.image-preview-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin-top: 0; /* no extra margin needed, gap handles spacing */
+}
+
+.image-preview-box div {
+  flex: 1 1 30%; /* responsive basis for 3 per row */
+  max-width: 120px;
+}
+.image-preview-box img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
 .create-post input[type="text"] {

@@ -134,19 +134,42 @@ function setAddButtonState(isReady) {
 
 function renderPreviews() {
   previewBox.innerHTML = "";
+
   if (!selectedFiles.length) {
     previewBox.style.display = "none";
     return;
   }
+
+  // make preview box visible and responsive
   previewBox.style.display = "flex";
+  previewBox.style.flexWrap = "wrap";
+  previewBox.style.gap = "8px";
+  previewBox.style.width = "100%";
+  previewBox.style.marginTop = "8px";
+  previewBox.style.clear = "both"; // ensures it stays below input
 
   selectedFiles.forEach((file, idx) => {
     const thumbWrap = document.createElement("div");
     thumbWrap.style.position = "relative";
+    thumbWrap.style.flexGrow = "1";
+    thumbWrap.style.flexShrink = "1";
+
+    // responsive flex-basis based on screen width
+    const screenWidth = window.innerWidth;
+    if (screenWidth < 480) {
+      thumbWrap.style.flexBasis = "100%"; // 1 per row on mobile
+    } else if (screenWidth < 768) {
+      thumbWrap.style.flexBasis = "48%"; // 2 per row on tablets
+    } else {
+      thumbWrap.style.flexBasis = "31%"; // 3 per row on desktop
+    }
+
+    thumbWrap.style.maxWidth = "120px";
+    thumbWrap.style.minWidth = "60px";
 
     const img = document.createElement("img");
-    img.style.width = "84px";
-    img.style.height = "84px";
+    img.style.width = "100%";
+    img.style.height = "auto";
     img.style.objectFit = "cover";
     img.style.borderRadius = "8px";
     img.alt = file.name;
@@ -168,6 +191,7 @@ function renderPreviews() {
     removeBtn.style.height = "22px";
     removeBtn.style.cursor = "pointer";
     removeBtn.title = "Remove image";
+
     removeBtn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       selectedFiles.splice(idx, 1);
@@ -180,6 +204,8 @@ function renderPreviews() {
     previewBox.appendChild(thumbWrap);
   });
 }
+
+
 
 function blueCheckSVG() {
   // 16x16 blue circle + white check (Twitter-like)
