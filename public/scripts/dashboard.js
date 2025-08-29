@@ -418,6 +418,15 @@ function renderPostElement(id, post) {
   left.style.alignItems = "center";
   left.style.gap = "6px";
 
+  // --- PROFILE IMAGE ---
+  const profileImg = document.createElement("img");
+  profileImg.src = "https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg"; // default
+  profileImg.alt = "Profile Image";
+  profileImg.style.width = "32px";
+  profileImg.style.height = "32px";
+  profileImg.style.borderRadius = "50%";
+  profileImg.style.objectFit = "cover";
+
   // username + verified wrapper
   const nameWrap = document.createElement("div");
   nameWrap.style.display = "flex";
@@ -434,6 +443,10 @@ function renderPostElement(id, post) {
   nameWrap.appendChild(nameEl);
   nameWrap.appendChild(verifiedHolder);
 
+  // append profile image before username
+  left.appendChild(profileImg);
+  left.appendChild(nameWrap);
+
   const timeSpan = document.createElement("span");
   timeSpan.className = "post-time";
   timeSpan.style.marginLeft = "8px";
@@ -441,11 +454,9 @@ function renderPostElement(id, post) {
   timeSpan.style.color = "#666";
   timeSpan.textContent = timeAgo(post.createdAt);
 
-  left.appendChild(nameWrap);
   left.appendChild(timeSpan);
 
   const right = document.createElement("div");
-  // owner-only actions
   const isOwner = auth.currentUser && post.uid === auth.currentUser.uid;
   if (isOwner) {
     const editBtn = document.createElement("button");
@@ -457,7 +468,6 @@ function renderPostElement(id, post) {
     right.appendChild(editBtn);
     right.appendChild(delBtn);
 
-    // inline edit
     editBtn.addEventListener("click", () => {
       if (article.querySelector(".inline-edit-wrap")) return;
       const contentEl = article.querySelector("p.post-text");
@@ -550,7 +560,6 @@ function renderPostElement(id, post) {
   const actions = document.createElement("div");
   actions.className = "post-actions";
 
-  // Like button + count separately
   const likeBtn = document.createElement("button");
   likeBtn.className = "like-btn";
   likeBtn.style.display = "flex";
@@ -572,7 +581,6 @@ function renderPostElement(id, post) {
   likeBtn.appendChild(heart);
   likeBtn.appendChild(likeCount);
 
-  // click heart → like/unlike
   heart.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!auth.currentUser) return alert("Sign in to like posts.");
@@ -590,7 +598,6 @@ function renderPostElement(id, post) {
     }
   });
 
-  // click count → show modal
   likeCount.addEventListener("click", async () => {
     const postRef = doc(db, "posts", id);
     const fresh = await getDoc(postRef);
@@ -617,12 +624,10 @@ function renderPostElement(id, post) {
     close.addEventListener("click", () => overlay.remove());
   });
 
-  // comment button
   const commentBtn = document.createElement("button");
   commentBtn.className = "comment-btn";
   commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.commentsCount || 0)}`;
 
-  // share button
   const shareBtn = document.createElement("button");
   shareBtn.className = "share-btn";
   shareBtn.innerHTML = `<i class="fas fa-share"></i>`;
@@ -653,7 +658,6 @@ function renderPostElement(id, post) {
       commentsSection.style.display === "none" ? "block" : "none";
   });
 
-  // add comment
   commentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const commentInput = commentForm.querySelector("input");
@@ -676,7 +680,6 @@ function renderPostElement(id, post) {
     }
   });
 
-  // live comments
   const commentsRef = collection(db, "posts", id, "comments");
   const commentsQuery = query(commentsRef, orderBy("createdAt", "asc"));
   onSnapshot(commentsQuery, (snapshot) => {
@@ -698,7 +701,6 @@ function renderPostElement(id, post) {
       text.textContent = comment.text;
       div.appendChild(text);
 
-      // delete own comment
       if (auth.currentUser && comment.uid === auth.currentUser.uid) {
         const delBtn = document.createElement("button");
         delBtn.className = "delete-comment-btn";
@@ -728,13 +730,14 @@ function renderPostElement(id, post) {
   article.appendChild(actions);
   article.appendChild(commentsSection);
 
-  // patch username
+  // patch username & profile image after fetch
   if (post.uid) {
     fetchUserProfile(post.uid).then((u) => {
       if (!u) return;
       nameEl.textContent = u.username || post.username || "User";
       verifiedHolder.innerHTML = "";
       if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
+      if (u.profileImage) profileImg.src = u.profileImage; // update if user has custom image
     });
   }
 
