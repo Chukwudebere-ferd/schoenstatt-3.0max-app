@@ -205,7 +205,7 @@ body {
 }
 
 .comment-text {
-  font-size: 20px;
+  font-size: 18px;
   color: #fff;
 }
 
@@ -345,3 +345,15 @@ body {
 
 .hidden { display: none; }
 .active { font-weight: bold; color: var(--primary); }
+/* ================= COUNTERS ================= */
+.like-btn span,
+.comment-btn span {
+  font-size: 22px;  
+  font-weight: bold; 
+  margin-left: 8px; 
+}
+
+.like-btn i,
+.comment-btn i {
+  font-size: 20px;
+}
