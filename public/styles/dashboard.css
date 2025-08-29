@@ -69,6 +69,27 @@ body {
   color: var(--primary);
   font-weight: bold;
 }
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  width: 0;
+  padding: 4px 8px;
+  margin-left: 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+  transition: width 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.search-input.active {
+  width: 180px; /* adjust size */
+  opacity: 1;
+}
 
 /* ========= Create Post ========= */
 /* Fix Create Post layout so previews appear below input */
@@ -113,6 +134,7 @@ body {
   border-radius: 20px;
   border: 1px solid #ccc;
   font-size: 14px;
+  outline: none;
 }
 
 .create-post button {

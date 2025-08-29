@@ -804,6 +804,38 @@ if (closeModalBtn && imageModal) {
 /* ========== initial UI state ========== */
 setAddButtonState(false);
 renderPreviews();
+const searchIcon = document.querySelector(".search-icon");
+const searchInput = document.querySelector(".search-input");
+
+searchIcon.addEventListener("click", () => {
+  searchInput.classList.toggle("active");
+  if (searchInput.classList.contains("active")) {
+    searchInput.focus();
+  } else {
+    searchInput.value = "";
+    filterPosts(""); // reset search
+  }
+});
+
+// Optional: live search
+searchInput.addEventListener("input", (e) => {
+  const query = e.target.value.toLowerCase();
+  filterPosts(query);
+});
+
+// Example filter function for posts
+function filterPosts(query) {
+  const posts = document.querySelectorAll(".post");
+  posts.forEach((post) => {
+    const text = post.querySelector(".post-text").textContent.toLowerCase();
+    if (text.includes(query)) {
+      post.style.display = "";
+    } else {
+      post.style.display = "none";
+    }
+  });
+}
+
 
 /* ========== NAV/SPA logic (unchanged) ========== */
 document.addEventListener("DOMContentLoaded", () => {
