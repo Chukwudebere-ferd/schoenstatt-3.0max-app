@@ -18,7 +18,6 @@ import {
 import {
   getAuth,
   onAuthStateChanged,
-  updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 /* ========== CONFIG ========== */
@@ -48,8 +47,58 @@ if (!postsSection) throw new Error("Missing #posts element in DOM");
 
 /* ========== STATE ========== */
 let currentUser = null;
+let currentUserProfile = null; // { username, verified } from users/{uid}
 let selectedFiles = [];
 let readyToPost = false;
+
+/* ========== Inject minimal styles we need (non-invasive) ========== */
+(function ensureGlobalStyles(){
+  if (document.getElementById("dash-injected-styles")) return;
+  const s = document.createElement("style");
+  s.id = "dash-injected-styles";
+  s.textContent = `
+    .verified-badge {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:16px; height:16px; margin-left:6px;
+      vertical-align:middle;
+    }
+    .likers-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.5);
+    }
+    .likers-card {
+      background: #fff; border-radius: 12px; padding: 12px 0 8px;
+      width: min(92vw, 420px); max-height: 70vh; overflow: hidden; position: relative;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    }
+    .likers-header {
+      font-weight: 600; padding: 10px 16px 8px; border-bottom: 1px solid #eee;
+    }
+    .likers-list {
+      list-style: none; margin: 0; padding: 8px 0; max-height: 56vh; overflow: auto;
+    }
+    .likers-item {
+      padding: 8px 16px; display:flex; align-items:center; gap:8px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .likers-close {
+      position: absolute; top: 8px; right: 8px; border: none; background: transparent;
+      font-size: 18px; cursor: pointer; line-height: 1; padding: 6px; border-radius: 8px;
+    }
+    .likers-close:hover { background:#f2f2f2; }
+    .post .post-actions button {
+      background: transparent; border: none; cursor: pointer;
+    }
+    .inline-edit-wrap { margin-top: 8px; display: flex; gap: 8px; }
+    .inline-edit-wrap textarea { width: 100%; min-height: 80px; resize: vertical; }
+    .chip {
+      display:inline-flex; align-items:center; gap:6px; padding: 6px 10px; margin: 6px 8px 0 0;
+      border-radius: 999px; background:#f5f5f5; font-size: 14px;
+    }
+  `;
+  document.head.appendChild(s);
+})();
 
 /* ========== Hidden file input ========== */
 const fileInput = document.createElement("input");
@@ -132,9 +181,99 @@ function renderPreviews() {
   });
 }
 
+function blueCheckSVG() {
+  // 16x16 blue circle + white check (Twitter-like)
+  const span = document.createElement("span");
+  span.className = "verified-badge";
+  span.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="10" fill="#fdd835"></circle>
+      <path d="M6.5 10.5l2.5 2.5 5-5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+  span.title = "Verified";
+  return span;
+}
+
+async function fetchUserProfile(uid) {
+  try {
+    const ud = await getDoc(doc(db, "users", uid));
+    if (!ud.exists()) return null;
+    const u = ud.data();
+    return {
+      username: u.username || u.name || null,
+      verified: !!u.verified
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveDisplayNameForPost(userProfile, firebaseUser) {
+  if (userProfile?.username) return userProfile.username;
+  if (firebaseUser?.displayName) return firebaseUser.displayName;
+  if (firebaseUser?.email) return firebaseUser.email.split("@")[0];
+  return "User";
+}
+
+function showLikersOverlay(items) {
+  // items: Array<{username: string, verified: boolean}>
+  const overlay = document.createElement("div");
+  overlay.className = "likers-overlay";
+
+  const card = document.createElement("div");
+  card.className = "likers-card";
+
+  const header = document.createElement("div");
+  header.className = "likers-header";
+  header.textContent = "Liked by";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "likers-close";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.innerHTML = "✕";
+  closeBtn.addEventListener("click", () => overlay.remove());
+
+  const list = document.createElement("ul");
+  list.className = "likers-list";
+
+  if (!items.length) {
+    const li = document.createElement("li");
+    li.className = "likers-item";
+    li.textContent = "No likes yet";
+    list.appendChild(li);
+  } else {
+    items.forEach(({ username, verified }) => {
+      const li = document.createElement("li");
+      li.className = "likers-item";
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      const strong = document.createElement("strong");
+      strong.textContent = username || "User";
+      chip.appendChild(strong);
+      if (verified) chip.appendChild(blueCheckSVG());
+      li.appendChild(chip);
+      list.appendChild(li);
+    });
+  }
+
+  card.appendChild(header);
+  card.appendChild(closeBtn);
+  card.appendChild(list);
+  overlay.appendChild(card);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+}
+
 /* ========== Auth state ========== */
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user || null;
+  currentUserProfile = null;
+  if (currentUser) {
+    currentUserProfile = await fetchUserProfile(currentUser.uid);
+  }
 });
 
 /* ========== File picker handlers ========== */
@@ -167,22 +306,6 @@ async function submitPost() {
     return;
   }
 
-  if (!currentUser.displayName) {
-    const name = prompt("Enter a display name (this will show publicly):");
-    if (!name || !name.trim()) {
-      alert("A display name is required to post.");
-      return;
-    }
-    try {
-      await updateProfile(auth.currentUser, { displayName: name.trim() });
-      currentUser = auth.currentUser;
-    } catch (err) {
-      console.error("Failed to update display name:", err);
-      alert("Failed to save display name. Try again.");
-      return;
-    }
-  }
-
   const text = (textInput.value || "").trim();
   if (!text && selectedFiles.length === 0) {
     alert("Post must contain text or at least one image.");
@@ -205,9 +328,11 @@ async function submitPost() {
       uploadedUrls.push(json.data.url);
     }
 
+    const usernameForPost = resolveDisplayNameForPost(currentUserProfile, currentUser);
+
     await addDoc(collection(db, "posts"), {
       uid: currentUser.uid,
-      username: currentUser.displayName || "",
+      username: usernameForPost, // for immediate display; we still patch live from users/{uid}
       text: text || "",
       images: uploadedUrls,
       likedBy: [],
@@ -237,7 +362,6 @@ onSnapshot(postsQuery, (snapshot) => {
   snapshot.forEach((docSnap) => {
     const id = docSnap.id;
     const data = docSnap.data();
-    // render synchronously (returns element) and patch user info later
     postsSection.appendChild(renderPostElement(id, data));
   });
 });
@@ -267,11 +391,19 @@ function renderPostElement(id, post) {
   header.style.display = "flex";
   header.style.alignItems = "center";
   header.style.gap = "8px";
+  header.style.justifyContent = "space-between";
+
+  const left = document.createElement("div");
+  left.style.display = "flex";
+  left.style.alignItems = "center";
+  left.style.gap = "8px";
 
   const nameEl = document.createElement("strong");
   nameEl.className = "username";
-  // show saved username first (if any), else placeholder
   nameEl.textContent = post.username ? post.username : "Loading...";
+
+  const verifiedHolder = document.createElement("span");
+  verifiedHolder.className = "verified-holder";
 
   const timeSpan = document.createElement("span");
   timeSpan.style.marginLeft = "8px";
@@ -279,33 +411,90 @@ function renderPostElement(id, post) {
   timeSpan.style.fontSize = "12px";
   timeSpan.textContent = timeAgo(post.createdAt);
 
-  header.appendChild(nameEl);
-  header.appendChild(timeSpan);
+  left.appendChild(nameEl);
+  left.appendChild(verifiedHolder);
+  left.appendChild(timeSpan);
 
-  // patch username + verified asynchronously (non-blocking)
-  if (post.uid) {
-    getDoc(doc(db, "users", post.uid))
-      .then((userDoc) => {
-        if (userDoc.exists()) {
-          const u = userDoc.data();
-          nameEl.textContent = u.username || post.username || "Unknown";
-          if (u.verified) {
-            const badge = document.createElement("i");
-            badge.className = "fas fa-certificate";
-            badge.title = "Verified";
-            badge.style.color = "gold";
-            badge.style.marginLeft = "6px";
-            nameEl.appendChild(badge);
-          }
+  const right = document.createElement("div");
+  right.style.display = "flex";
+  right.style.alignItems = "center";
+  right.style.gap = "10px";
+
+  // Owner-only actions (edit/delete)
+  const isOwner = auth.currentUser && post.uid === auth.currentUser.uid;
+
+  if (isOwner) {
+    const editBtn = document.createElement("button");
+    editBtn.className = "edit-btn";
+    editBtn.title = "Edit post";
+    editBtn.innerHTML = `<i class="fas fa-edit"></i>`;
+    editBtn.style.cursor = "pointer";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "delete-btn";
+    delBtn.title = "Delete post";
+    delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
+    delBtn.style.cursor = "pointer";
+
+    right.appendChild(editBtn);
+    right.appendChild(delBtn);
+
+    // inline edit instead of prompt
+    editBtn.addEventListener("click", () => {
+      if (article.querySelector(".inline-edit-wrap")) return; // already editing
+      const contentEl = article.querySelector("p.post-text");
+      const wrap = document.createElement("div");
+      wrap.className = "inline-edit-wrap";
+      const ta = document.createElement("textarea");
+      ta.value = contentEl ? contentEl.textContent : (post.text || "");
+      const save = document.createElement("button");
+      save.textContent = "Save";
+      const cancel = document.createElement("button");
+      cancel.textContent = "Cancel";
+      wrap.appendChild(ta);
+      wrap.appendChild(save);
+      wrap.appendChild(cancel);
+      contentEl.style.display = "none";
+      article.insertBefore(wrap, contentEl.nextSibling);
+
+      save.addEventListener("click", async () => {
+        const newText = ta.value.trim();
+        try {
+          await updateDoc(doc(db, "posts", id), { text: newText });
+        } catch (err) {
+          console.error("Edit failed:", err);
+          alert("Failed to save changes.");
+        } finally {
+          // let onSnapshot re-render; but also local immediate UX:
+          contentEl.textContent = newText;
+          contentEl.style.display = "";
+          wrap.remove();
         }
-      })
-      .catch((err) => {
-        console.warn("Failed to patch user info:", err);
       });
+
+      cancel.addEventListener("click", () => {
+        contentEl.style.display = "";
+        wrap.remove();
+      });
+    });
+
+    delBtn.addEventListener("click", async () => {
+      if (!confirm("Delete this post?")) return;
+      try {
+        await deleteDoc(doc(db, "posts", id));
+      } catch (err) {
+        console.error("Delete failed:", err);
+        alert("Delete failed.");
+      }
+    });
   }
+
+  header.appendChild(left);
+  header.appendChild(right);
 
   // text
   const textP = document.createElement("p");
+  textP.className = "post-text";
   textP.textContent = post.text || "";
   textP.style.marginTop = "8px";
   textP.style.whiteSpace = "pre-wrap";
@@ -314,15 +503,16 @@ function renderPostElement(id, post) {
   const imgs = post.images || [];
   const imagesWrap = document.createElement("div");
   imagesWrap.className = "post-images";
-  imagesWrap.style.display = "grid";
-  imagesWrap.style.gap = "6px";
-  imagesWrap.style.marginTop = "8px";
-  imagesWrap.style.gridTemplateColumns = imgs.length > 1 ? "1fr 1fr" : "1fr";
+  if (imgs.length) {
+    imagesWrap.style.display = "grid";
+    imagesWrap.style.gap = "6px";
+    imagesWrap.style.marginTop = "8px";
+    imagesWrap.style.gridTemplateColumns = imgs.length > 1 ? "1fr 1fr" : "1fr";
+  }
 
   imgs.forEach((src, i) => {
     const imgWrap = document.createElement("div");
     imgWrap.style.position = "relative";
-
     const imgEl = document.createElement("img");
     imgEl.src = src;
     imgEl.alt = `post image ${i + 1}`;
@@ -332,8 +522,6 @@ function renderPostElement(id, post) {
     imgEl.style.objectFit = "cover";
     imgEl.style.maxHeight = "360px";
     imgEl.style.cursor = "pointer";
-
-    // show modal if modal exists, else open in new tab
     imgEl.addEventListener("click", () => {
       const modal = document.getElementById("imageModal");
       const modalImg = document.getElementById("modalImage");
@@ -346,9 +534,7 @@ function renderPostElement(id, post) {
         window.open(src, "_blank");
       }
     });
-
     imgWrap.appendChild(imgEl);
-    // if multiple images, show small counter on first
     if (i === 0 && imgs.length > 1) {
       const indicator = document.createElement("div");
       indicator.textContent = `1/${imgs.length}`;
@@ -376,19 +562,19 @@ function renderPostElement(id, post) {
   // Like button
   const likeBtn = document.createElement("button");
   likeBtn.className = "like-btn";
-  likeBtn.style.cursor = "pointer";
   likeBtn.style.display = "flex";
   likeBtn.style.alignItems = "center";
   likeBtn.style.gap = "6px";
-  const heart = document.createElement("i");
-  const likedBy = post.likedBy || [];
-  const currentlyLiked = auth.currentUser && likedBy.includes(auth.currentUser.uid);
-  heart.className = currentlyLiked ? "fas fa-heart" : "far fa-heart";
-  heart.style.color = currentlyLiked ? "red" : "#333";
-  likeBtn.appendChild(heart);
 
+  const heart = document.createElement("i");
+  const likedByArr = post.likedBy || [];
+  const userHasLiked = auth.currentUser && likedByArr.includes(auth.currentUser.uid);
+  heart.className = userHasLiked ? "fas fa-heart" : "far fa-heart";
+  heart.style.color = userHasLiked ? "red" : "#333";
   const likeCount = document.createElement("span");
-  likeCount.textContent = `${likedBy.length || 0}`;
+  likeCount.textContent = `${likedByArr.length || 0}`;
+
+  likeBtn.appendChild(heart);
   likeBtn.appendChild(likeCount);
 
   likeBtn.addEventListener("click", async (e) => {
@@ -396,7 +582,10 @@ function renderPostElement(id, post) {
     if (!auth.currentUser) return alert("Sign in to like posts.");
     const postRef = doc(db, "posts", id);
     try {
-      if ((post.likedBy || []).includes(auth.currentUser.uid)) {
+      // do not rely on stale closure; just try both ways based on membership
+      const fresh = await getDoc(postRef);
+      const cur = fresh.exists() ? (fresh.data().likedBy || []) : [];
+      if (cur.includes(auth.currentUser.uid)) {
         await updateDoc(postRef, { likedBy: arrayRemove(auth.currentUser.uid) });
       } else {
         await updateDoc(postRef, { likedBy: arrayUnion(auth.currentUser.uid) });
@@ -406,25 +595,24 @@ function renderPostElement(id, post) {
     }
   });
 
-  // show likers
+  // View likers (overlay)
   likeCount.style.cursor = "pointer";
   likeCount.title = "View likers";
   likeCount.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const liked = post.likedBy || [];
-    if (!liked.length) return alert("No likes yet.");
     try {
-      const names = [];
+      const snap = await getDoc(doc(db, "posts", id));
+      const liked = snap.exists() ? (snap.data().likedBy || []) : [];
+      const items = [];
       for (const uid of liked) {
-        const ud = await getDoc(doc(db, "users", uid));
-        if (ud.exists()) {
-          const u = ud.data();
-          names.push(`${u.username || "User"}${u.verified ? " ✅" : ""}`);
-        } else {
-          names.push("Unknown");
-        }
+        const up = await fetchUserProfile(uid);
+        const fakeUser = { username: "User", verified: false };
+        items.push({
+          username: up?.username || fakeUser.username,
+          verified: !!up?.verified
+        });
       }
-      alert("Liked by:\n" + names.join("\n"));
+      showLikersOverlay(items);
     } catch (err) {
       console.error("Failed to fetch likers:", err);
     }
@@ -461,39 +649,6 @@ function renderPostElement(id, post) {
   actions.appendChild(commentBtn);
   actions.appendChild(shareBtn);
 
-  // only show delete/edit if owner (note: might appear after auth state resolves)
-  if (post.uid && auth.currentUser && post.uid === auth.currentUser.uid) {
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete-btn";
-    deleteBtn.innerHTML = `<i class="fas fa-trash"></i>`;
-    deleteBtn.style.cursor = "pointer";
-    deleteBtn.addEventListener("click", async () => {
-      if (!confirm("Delete this post?")) return;
-      try {
-        await deleteDoc(doc(db, "posts", id));
-      } catch (err) {
-        console.error("Delete failed:", err);
-        alert("Delete failed.");
-      }
-    });
-    actions.appendChild(deleteBtn);
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "edit-btn";
-    editBtn.innerHTML = `<i class="fas fa-edit"></i>`;
-    editBtn.style.cursor = "pointer";
-    editBtn.addEventListener("click", async () => {
-      const newText = prompt("Edit your post:", post.text || "");
-      if (newText === null) return;
-      try {
-        await updateDoc(doc(db, "posts", id), { text: newText });
-      } catch (err) {
-        console.error("Edit failed:", err);
-      }
-    });
-    actions.appendChild(editBtn);
-  }
-
   // append header/text/images/actions
   article.appendChild(header);
   article.appendChild(textP);
@@ -506,13 +661,13 @@ function renderPostElement(id, post) {
   commentArea.style.marginTop = "8px";
 
   const commentList = document.createElement("div");
-  // show current comments (simple)
+  // show current comments
   (post.comments || []).forEach((c) => {
     const cEl = document.createElement("p");
     cEl.style.fontSize = "14px";
     cEl.style.margin = "6px 0";
     const who = c.username || "Anonymous";
-    cEl.innerHTML = `<strong>${who}${c.verified ? " <i class='fas fa-certificate' style='color:gold;'></i>" : ""}:</strong> ${c.text}`;
+    cEl.innerHTML = `<strong>${who}</strong> ${c.verified ? blueCheckSVG().outerHTML : ""}: ${c.text}`;
     commentList.appendChild(cEl);
   });
 
@@ -532,18 +687,35 @@ function renderPostElement(id, post) {
     const txt = (commentInput.value || "").trim();
     if (!txt) return;
     if (!auth.currentUser) { alert("Sign in to comment."); return; }
+
+    // Use profile from users/{uid} for username/verified
+    let profile = currentUserProfile;
+    if (!profile) profile = await fetchUserProfile(auth.currentUser.uid);
+
     try {
       await updateDoc(doc(db, "posts", id), {
         comments: arrayUnion({
           uid: auth.currentUser.uid,
-          username: auth.currentUser.displayName || "Anonymous",
+          username: profile?.username || resolveDisplayNameForPost(null, auth.currentUser),
+          verified: !!profile?.verified,
           text: txt,
           createdAt: serverTimestamp()
         })
       });
       commentInput.value = "";
+      // Optimistic: also append locally until snapshot arrives
+      const cEl = document.createElement("p");
+      cEl.style.fontSize = "14px";
+      cEl.style.margin = "6px 0";
+      const who = profile?.username || resolveDisplayNameForPost(null, auth.currentUser);
+      cEl.innerHTML = `<strong>${who}</strong> ${profile?.verified ? blueCheckSVG().outerHTML : ""}: ${txt}`;
+      commentList.appendChild(cEl);
+      // bump button count locally
+      const currentCount = parseInt(commentBtn.textContent.replace(/\D/g,"")) || 0;
+      commentBtn.innerHTML = `<i class="far fa-comment"></i> ${currentCount + 1}`;
     } catch (err) {
       console.error("Failed to add comment:", err);
+      alert("Failed to add comment.");
     }
   });
 
@@ -558,6 +730,20 @@ function renderPostElement(id, post) {
     commentArea.style.display = commentArea.style.display === "none" ? "block" : "none";
   });
 
+  // patch username + verified asynchronously (non-blocking)
+  if (post.uid) {
+    fetchUserProfile(post.uid)
+      .then((u) => {
+        if (!u) return;
+        nameEl.textContent = u.username || post.username || "User";
+        verifiedHolder.innerHTML = "";
+        if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
+      })
+      .catch((err) => {
+        console.warn("Failed to patch user info:", err);
+      });
+  }
+
   return article;
 }
 
@@ -568,7 +754,6 @@ if (closeModalBtn && imageModal) {
   closeModalBtn.addEventListener("click", () => {
     imageModal.style.display = "none";
   });
-  // close modal when clicking outside modal image
   imageModal.addEventListener("click", (e) => {
     if (e.target === imageModal) imageModal.style.display = "none";
   });
