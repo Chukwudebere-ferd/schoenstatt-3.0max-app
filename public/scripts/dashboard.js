@@ -31,7 +31,7 @@ const firebaseConfig = {
   messagingSenderId: "1089856463518",
   appId: "1:1089856463518:web:9cc53d056cb69ab673518f"
 };
-const IMGBB_KEY = "5ef7cd278c7926f46592ee2d4bcb78fa"; // your imgbb key
+const IMGBB_KEY = "5ef7cd278c7926f46592ee2d4bcb78fa";
 
 /* ========== INIT ========== */
 const app = initializeApp(firebaseConfig);
@@ -48,10 +48,10 @@ if (!postsSection) throw new Error("Missing #posts element in DOM");
 
 /* ========== STATE ========== */
 let currentUser = null;
-let selectedFiles = []; // File objects (local)
+let selectedFiles = [];
 let readyToPost = false;
 
-/* ========== Hidden file input (used for picking images) ========== */
+/* ========== Hidden file input ========== */
 const fileInput = document.createElement("input");
 fileInput.type = "file";
 fileInput.accept = "image/*";
@@ -59,7 +59,7 @@ fileInput.multiple = true;
 fileInput.style.display = "none";
 document.body.appendChild(fileInput);
 
-/* ========== UI: create preview area inside .create-post ========== */
+/* ========== Preview box ========== */
 let previewBox = createPostContainer.querySelector(".image-preview-box");
 if (!previewBox) {
   previewBox = document.createElement("div");
@@ -71,19 +71,18 @@ if (!previewBox) {
   createPostContainer.appendChild(previewBox);
 }
 
-/* Helper: update add-post button UI */
+/* ========== Helpers ========== */
 function setAddButtonState(isReady) {
   readyToPost = !!isReady;
   if (readyToPost) {
-    addPostBtn.innerHTML = `<i class="fas fa-paper-plane"></i>`; // Post icon
+    addPostBtn.innerHTML = `<i class="fas fa-paper-plane"></i>`;
     addPostBtn.title = "Post";
   } else {
-    addPostBtn.innerHTML = `<i class="fas fa-plus"></i>`; // Add image icon
+    addPostBtn.innerHTML = `<i class="fas fa-plus"></i>`;
     addPostBtn.title = "Add images / Post";
   }
 }
 
-/* Helper: render thumbnails for selectedFiles (File objects) */
 function renderPreviews() {
   previewBox.innerHTML = "";
   if (!selectedFiles.length) {
@@ -107,7 +106,6 @@ function renderPreviews() {
     reader.onload = (e) => { img.src = e.target.result; };
     reader.readAsDataURL(file);
 
-    // Remove button (small x)
     const removeBtn = document.createElement("button");
     removeBtn.innerText = "×";
     removeBtn.style.position = "absolute";
@@ -128,21 +126,6 @@ function renderPreviews() {
       setAddButtonState(selectedFiles.length > 0 || (textInput.value || "").trim().length > 0);
     });
 
-    // If this is the first image, show indicator "1/N"
-    if (idx === 0 && selectedFiles.length > 1) {
-      const indicator = document.createElement("div");
-      indicator.innerText = `1/${selectedFiles.length}`;
-      indicator.style.position = "absolute";
-      indicator.style.bottom = "6px";
-      indicator.style.right = "6px";
-      indicator.style.background = "rgba(0,0,0,0.6)";
-      indicator.style.color = "#fff";
-      indicator.style.padding = "2px 6px";
-      indicator.style.borderRadius = "10px";
-      indicator.style.fontSize = "12px";
-      thumbWrap.appendChild(indicator);
-    }
-
     thumbWrap.appendChild(img);
     thumbWrap.appendChild(removeBtn);
     previewBox.appendChild(thumbWrap);
@@ -152,41 +135,27 @@ function renderPreviews() {
 /* ========== Auth state ========== */
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
-  if (!user) {
-    window.location.href = "index.html";
-    return;
-  }
 });
 
-/* ========== File picker handling ========== */
+/* ========== File picker handlers ========== */
 fileInput.addEventListener("change", (e) => {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
-
-  // limit to 7 files, preserve the order user picked
-  const allowed = files.slice(0, 7);
-  selectedFiles = allowed;
+  selectedFiles = files.slice(0, 7);
   renderPreviews();
   setAddButtonState(true);
 });
 
-/* ========== text input change -> toggle button */ 
 textInput.addEventListener("input", () => {
   const hasText = (textInput.value || "").trim().length > 0;
   setAddButtonState(hasText || selectedFiles.length > 0);
 });
 
-/* ========== add-post button behavior ==========
-   - If readyToPost => submit post
-   - else => open file picker
-*/
 addPostBtn.addEventListener("click", async (e) => {
   e.preventDefault();
-  // If we already have text or files, treat as "Post"
   if (readyToPost) {
     await submitPost();
   } else {
-    // open file picker
     fileInput.click();
   }
 });
@@ -194,11 +163,10 @@ addPostBtn.addEventListener("click", async (e) => {
 /* ========== Submit post ========= */
 async function submitPost() {
   if (!currentUser) {
-    window.location.href = "index.html"; // not signed in, go back to login
+    window.location.href = "index.html";
     return;
   }
 
-  // must have displayName (do NOT use email). If not, prompt to set it.
   if (!currentUser.displayName) {
     const name = prompt("Enter a display name (this will show publicly):");
     if (!name || !name.trim()) {
@@ -207,7 +175,6 @@ async function submitPost() {
     }
     try {
       await updateProfile(auth.currentUser, { displayName: name.trim() });
-      // refresh currentUser
       currentUser = auth.currentUser;
     } catch (err) {
       console.error("Failed to update display name:", err);
@@ -222,33 +189,25 @@ async function submitPost() {
     return;
   }
 
-  // disable UI while posting
   addPostBtn.disabled = true;
   addPostBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
   addPostBtn.title = "Posting...";
 
-  const uploadedUrls = [];
   try {
-    // upload images sequentially (safer for rate limits)
+    const uploadedUrls = [];
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
-      // using imgbb: accept file in FormData
       const fd = new FormData();
       fd.append("image", file);
-      // you could include name or other fields if needed
       const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
       const json = await res.json();
-      if (!json || !json.success) {
-        console.warn("imgbb upload failed for file:", file.name, json);
-        throw new Error("Image upload failed");
-      }
+      if (!json || !json.success) throw new Error("Image upload failed");
       uploadedUrls.push(json.data.url);
     }
 
-    // Save post to Firestore
-    const docRef = await addDoc(collection(db, "posts"), {
+    await addDoc(collection(db, "posts"), {
       uid: currentUser.uid,
-      username: currentUser.displayName,
+      username: currentUser.displayName || "",
       text: text || "",
       images: uploadedUrls,
       likedBy: [],
@@ -262,10 +221,6 @@ async function submitPost() {
     fileInput.value = "";
     renderPreviews();
     setAddButtonState(false);
-
-    // optional: scroll to top to show the new post when it appears
-    // window.scrollTo({ top: 0, behavior: "smooth" });
-
   } catch (err) {
     console.error("Post failed:", err);
     alert("Failed to publish post. Try again.");
@@ -275,21 +230,22 @@ async function submitPost() {
   }
 }
 
-/* ========== Real-time feed rendering (onSnapshot) ========= */
+/* ========== Real-time feed (renders instantly) ========= */
 const postsQuery = query(collection(db, "posts"), orderBy("createdAt", "desc"));
 onSnapshot(postsQuery, (snapshot) => {
-  postsSection.innerHTML = ""; // re-render full feed simply
+  postsSection.innerHTML = "";
   snapshot.forEach((docSnap) => {
     const id = docSnap.id;
     const data = docSnap.data();
+    // render synchronously (returns element) and patch user info later
     postsSection.appendChild(renderPostElement(id, data));
   });
 });
 
-/* ========== Helper: readable time ========= */
+/* ========== Helper: timeAgo ========= */
 function timeAgo(ts) {
   if (!ts) return "Just now";
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = ts && ts.toDate ? ts.toDate() : new Date(ts);
   const diff = Math.floor((Date.now() - d.getTime()) / 1000);
   if (diff < 60) return `${diff}s`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
@@ -297,41 +253,25 @@ function timeAgo(ts) {
   return d.toLocaleString();
 }
 
-async function renderPostElement(id, post) {
+/* ========== Render post element (sync) ========= */
+function renderPostElement(id, post) {
   const article = document.createElement("article");
   article.className = "post";
   article.id = `post-${id}`;
+  article.style.padding = "12px";
+  article.style.borderBottom = "1px solid #eee";
 
   // header
   const header = document.createElement("div");
   header.className = "post-header";
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.gap = "8px";
 
-  // fetch user info (username + verified)
-  let username = post.username || "Unknown";
-  let verified = false;
-  if (post.uid) {
-    try {
-      const userDoc = await getDoc(doc(db, "users", post.uid));
-      if (userDoc.exists()) {
-        const u = userDoc.data();
-        username = u.username || username;
-        verified = !!u.verified;
-      }
-    } catch (err) {
-      console.warn("Failed to fetch user info:", err);
-    }
-  }
-
-  const name = document.createElement("strong");
-  name.textContent = username;
-
-  if (verified) {
-    const badge = document.createElement("i");
-    badge.className = "fas fa-certificate";
-    badge.style.color = "gold";
-    badge.style.marginLeft = "4px";
-    name.appendChild(badge);
-  }
+  const nameEl = document.createElement("strong");
+  nameEl.className = "username";
+  // show saved username first (if any), else placeholder
+  nameEl.textContent = post.username ? post.username : "Loading...";
 
   const timeSpan = document.createElement("span");
   timeSpan.style.marginLeft = "8px";
@@ -339,218 +279,337 @@ async function renderPostElement(id, post) {
   timeSpan.style.fontSize = "12px";
   timeSpan.textContent = timeAgo(post.createdAt);
 
-  header.appendChild(name);
+  header.appendChild(nameEl);
   header.appendChild(timeSpan);
 
-  // delete button (only if owner)
-  if (auth.currentUser && post.uid === auth.currentUser.uid) {
-    const delBtn = document.createElement("button");
-    delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
-    delBtn.style.marginLeft = "auto";
-    delBtn.style.cursor = "pointer";
-    delBtn.addEventListener("click", async () => {
-      if (confirm("Delete this post?")) {
-        try {
-          await deleteDoc(doc(db, "posts", id));
-          article.remove();
-        } catch (err) {
-          console.error("Delete failed", err);
+  // patch username + verified asynchronously (non-blocking)
+  if (post.uid) {
+    getDoc(doc(db, "users", post.uid))
+      .then((userDoc) => {
+        if (userDoc.exists()) {
+          const u = userDoc.data();
+          nameEl.textContent = u.username || post.username || "Unknown";
+          if (u.verified) {
+            const badge = document.createElement("i");
+            badge.className = "fas fa-certificate";
+            badge.title = "Verified";
+            badge.style.color = "gold";
+            badge.style.marginLeft = "6px";
+            nameEl.appendChild(badge);
+          }
         }
-      }
-    });
-    header.appendChild(delBtn);
+      })
+      .catch((err) => {
+        console.warn("Failed to patch user info:", err);
+      });
   }
 
   // text
   const textP = document.createElement("p");
   textP.textContent = post.text || "";
+  textP.style.marginTop = "8px";
+  textP.style.whiteSpace = "pre-wrap";
 
   // images
+  const imgs = post.images || [];
   const imagesWrap = document.createElement("div");
   imagesWrap.className = "post-images";
-  (post.images || []).forEach((src, i) => {
+  imagesWrap.style.display = "grid";
+  imagesWrap.style.gap = "6px";
+  imagesWrap.style.marginTop = "8px";
+  imagesWrap.style.gridTemplateColumns = imgs.length > 1 ? "1fr 1fr" : "1fr";
+
+  imgs.forEach((src, i) => {
+    const imgWrap = document.createElement("div");
+    imgWrap.style.position = "relative";
+
     const imgEl = document.createElement("img");
     imgEl.src = src;
     imgEl.alt = `post image ${i + 1}`;
     imgEl.style.width = "100%";
+    imgEl.style.display = "block";
     imgEl.style.borderRadius = "8px";
+    imgEl.style.objectFit = "cover";
+    imgEl.style.maxHeight = "360px";
     imgEl.style.cursor = "pointer";
 
+    // show modal if modal exists, else open in new tab
     imgEl.addEventListener("click", () => {
-      document.getElementById("imageModal").style.display = "block";
-      document.getElementById("modalImage").src = src;
-      document.getElementById("downloadImage").href = src;
+      const modal = document.getElementById("imageModal");
+      const modalImg = document.getElementById("modalImage");
+      const downloadLink = document.getElementById("downloadImage");
+      if (modal && modalImg) {
+        modal.style.display = "block";
+        modalImg.src = src;
+        if (downloadLink) downloadLink.href = src;
+      } else {
+        window.open(src, "_blank");
+      }
     });
 
-    imagesWrap.appendChild(imgEl);
+    imgWrap.appendChild(imgEl);
+    // if multiple images, show small counter on first
+    if (i === 0 && imgs.length > 1) {
+      const indicator = document.createElement("div");
+      indicator.textContent = `1/${imgs.length}`;
+      indicator.style.position = "absolute";
+      indicator.style.right = "8px";
+      indicator.style.bottom = "8px";
+      indicator.style.background = "rgba(0,0,0,0.6)";
+      indicator.style.color = "#fff";
+      indicator.style.padding = "4px 8px";
+      indicator.style.borderRadius = "10px";
+      indicator.style.fontSize = "12px";
+      imgWrap.appendChild(indicator);
+    }
+    imagesWrap.appendChild(imgWrap);
   });
 
   // actions
   const actions = document.createElement("div");
   actions.className = "post-actions";
+  actions.style.display = "flex";
+  actions.style.gap = "12px";
+  actions.style.marginTop = "10px";
+  actions.style.alignItems = "center";
 
   // Like button
   const likeBtn = document.createElement("button");
+  likeBtn.className = "like-btn";
+  likeBtn.style.cursor = "pointer";
   likeBtn.style.display = "flex";
   likeBtn.style.alignItems = "center";
-  likeBtn.style.gap = "4px";
-
+  likeBtn.style.gap = "6px";
   const heart = document.createElement("i");
   const likedBy = post.likedBy || [];
-  const isLiked = auth.currentUser && likedBy.includes(auth.currentUser.uid);
-  heart.className = isLiked ? "fas fa-heart" : "far fa-heart";
-  heart.style.color = isLiked ? "red" : "#333";
+  const currentlyLiked = auth.currentUser && likedBy.includes(auth.currentUser.uid);
+  heart.className = currentlyLiked ? "fas fa-heart" : "far fa-heart";
+  heart.style.color = currentlyLiked ? "red" : "#333";
+  likeBtn.appendChild(heart);
 
   const likeCount = document.createElement("span");
-  likeCount.textContent = likedBy.length;
-
-  likeBtn.appendChild(heart);
+  likeCount.textContent = `${likedBy.length || 0}`;
   likeBtn.appendChild(likeCount);
 
-  likeBtn.addEventListener("click", async () => {
+  likeBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
     if (!auth.currentUser) return alert("Sign in to like posts.");
     const postRef = doc(db, "posts", id);
-    if (isLiked) {
-      await updateDoc(postRef, { likedBy: arrayRemove(auth.currentUser.uid) });
-    } else {
-      await updateDoc(postRef, { likedBy: arrayUnion(auth.currentUser.uid) });
+    try {
+      if ((post.likedBy || []).includes(auth.currentUser.uid)) {
+        await updateDoc(postRef, { likedBy: arrayRemove(auth.currentUser.uid) });
+      } else {
+        await updateDoc(postRef, { likedBy: arrayUnion(auth.currentUser.uid) });
+      }
+    } catch (err) {
+      console.error("Like update failed:", err);
     }
   });
 
   // show likers
   likeCount.style.cursor = "pointer";
+  likeCount.title = "View likers";
   likeCount.addEventListener("click", async (e) => {
     e.stopPropagation();
-    if (!likedBy.length) return alert("No likes yet.");
-    let usersList = [];
-    for (const uid of likedBy) {
-      const userDoc = await getDoc(doc(db, "users", uid));
-      if (userDoc.exists()) {
-        const u = userDoc.data();
-        usersList.push(`${u.username}${u.verified ? " ✅" : ""}`);
+    const liked = post.likedBy || [];
+    if (!liked.length) return alert("No likes yet.");
+    try {
+      const names = [];
+      for (const uid of liked) {
+        const ud = await getDoc(doc(db, "users", uid));
+        if (ud.exists()) {
+          const u = ud.data();
+          names.push(`${u.username || "User"}${u.verified ? " ✅" : ""}`);
+        } else {
+          names.push("Unknown");
+        }
       }
+      alert("Liked by:\n" + names.join("\n"));
+    } catch (err) {
+      console.error("Failed to fetch likers:", err);
     }
-    alert("Liked by:\n" + usersList.join("\n"));
   });
 
-  // Comments
+  // Comments (toggle area)
   const commentBtn = document.createElement("button");
-  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.comments || []).length}`;
+  commentBtn.className = "comment-btn";
+  commentBtn.style.cursor = "pointer";
+  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.comments || []).length || 0}`;
 
+  // Share
+  const shareBtn = document.createElement("button");
+  shareBtn.className = "share-btn";
+  shareBtn.style.cursor = "pointer";
+  shareBtn.innerHTML = `<i class="fas fa-share"></i>`;
+  shareBtn.addEventListener("click", async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}#post-${id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: post.username || "Post", text: post.text || "", url: shareUrl });
+      } catch { /* user cancelled */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Post link copied to clipboard!");
+      } catch {
+        prompt("Copy the post link:", shareUrl);
+      }
+    }
+  });
+
+  actions.appendChild(likeBtn);
+  actions.appendChild(commentBtn);
+  actions.appendChild(shareBtn);
+
+  // only show delete/edit if owner (note: might appear after auth state resolves)
+  if (post.uid && auth.currentUser && post.uid === auth.currentUser.uid) {
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "delete-btn";
+    deleteBtn.innerHTML = `<i class="fas fa-trash"></i>`;
+    deleteBtn.style.cursor = "pointer";
+    deleteBtn.addEventListener("click", async () => {
+      if (!confirm("Delete this post?")) return;
+      try {
+        await deleteDoc(doc(db, "posts", id));
+      } catch (err) {
+        console.error("Delete failed:", err);
+        alert("Delete failed.");
+      }
+    });
+    actions.appendChild(deleteBtn);
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "edit-btn";
+    editBtn.innerHTML = `<i class="fas fa-edit"></i>`;
+    editBtn.style.cursor = "pointer";
+    editBtn.addEventListener("click", async () => {
+      const newText = prompt("Edit your post:", post.text || "");
+      if (newText === null) return;
+      try {
+        await updateDoc(doc(db, "posts", id), { text: newText });
+      } catch (err) {
+        console.error("Edit failed:", err);
+      }
+    });
+    actions.appendChild(editBtn);
+  }
+
+  // append header/text/images/actions
+  article.appendChild(header);
+  article.appendChild(textP);
+  if (imgs.length) article.appendChild(imagesWrap);
+  article.appendChild(actions);
+
+  // comment area
   const commentArea = document.createElement("div");
   commentArea.style.display = "none";
   commentArea.style.marginTop = "8px";
 
   const commentList = document.createElement("div");
-  (post.comments || []).forEach(c => {
+  // show current comments (simple)
+  (post.comments || []).forEach((c) => {
     const cEl = document.createElement("p");
     cEl.style.fontSize = "14px";
-    cEl.innerHTML = `<strong>${c.username}${c.verified ? " <i class='fas fa-certificate' style='color:gold;'></i>" : ""}:</strong> ${c.text}`;
+    cEl.style.margin = "6px 0";
+    const who = c.username || "Anonymous";
+    cEl.innerHTML = `<strong>${who}${c.verified ? " <i class='fas fa-certificate' style='color:gold;'></i>" : ""}:</strong> ${c.text}`;
     commentList.appendChild(cEl);
   });
+
+  const commentInputWrap = document.createElement("div");
+  commentInputWrap.style.display = "flex";
+  commentInputWrap.style.gap = "8px";
+  commentInputWrap.style.marginTop = "8px";
 
   const commentInput = document.createElement("input");
   commentInput.type = "text";
   commentInput.placeholder = "Write a comment...";
+  commentInput.style.flex = "1";
 
-  const sendBtn = document.createElement("button");
-  sendBtn.textContent = "Send";
-  sendBtn.addEventListener("click", async () => {
-    const txt = commentInput.value.trim();
+  const commentSend = document.createElement("button");
+  commentSend.innerText = "Send";
+  commentSend.addEventListener("click", async () => {
+    const txt = (commentInput.value || "").trim();
     if (!txt) return;
-    if (!auth.currentUser) return alert("Sign in to comment.");
-
-    const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const verified = userDoc.exists() ? !!userDoc.data().verified : false;
-
-    await updateDoc(doc(db, "posts", id), {
-      comments: arrayUnion({
-        uid: auth.currentUser.uid,
-        username: auth.currentUser.displayName || "Anonymous",
-        verified,
-        text: txt,
-        createdAt: serverTimestamp()
-      })
-    });
-    commentInput.value = "";
+    if (!auth.currentUser) { alert("Sign in to comment."); return; }
+    try {
+      await updateDoc(doc(db, "posts", id), {
+        comments: arrayUnion({
+          uid: auth.currentUser.uid,
+          username: auth.currentUser.displayName || "Anonymous",
+          text: txt,
+          createdAt: serverTimestamp()
+        })
+      });
+      commentInput.value = "";
+    } catch (err) {
+      console.error("Failed to add comment:", err);
+    }
   });
 
+  commentInputWrap.appendChild(commentInput);
+  commentInputWrap.appendChild(commentSend);
+
   commentArea.appendChild(commentList);
-  commentArea.appendChild(commentInput);
-  commentArea.appendChild(sendBtn);
+  commentArea.appendChild(commentInputWrap);
+  article.appendChild(commentArea);
 
   commentBtn.addEventListener("click", () => {
     commentArea.style.display = commentArea.style.display === "none" ? "block" : "none";
   });
 
-  actions.appendChild(likeBtn);
-  actions.appendChild(commentBtn);
-
-  // assemble
-  article.appendChild(header);
-  article.appendChild(textP);
-  article.appendChild(imagesWrap);
-  article.appendChild(actions);
-  article.appendChild(commentArea);
-
   return article;
 }
 
-// close modal handler
-document.getElementById("closeModal").addEventListener("click", () => {
-  document.getElementById("imageModal").style.display = "none";
-});
+/* ========== Image modal safe handlers (if in DOM) ========= */
+const closeModalBtn = document.getElementById("closeModal");
+const imageModal = document.getElementById("imageModal");
+if (closeModalBtn && imageModal) {
+  closeModalBtn.addEventListener("click", () => {
+    imageModal.style.display = "none";
+  });
+  // close modal when clicking outside modal image
+  imageModal.addEventListener("click", (e) => {
+    if (e.target === imageModal) imageModal.style.display = "none";
+  });
+}
 
-
-/* ========== initial button state ========== */
+/* ========== initial UI state ========== */
 setAddButtonState(false);
 renderPreviews();
 
-
-// nav
-
+/* ========== NAV/SPA logic (unchanged) ========== */
 document.addEventListener("DOMContentLoaded", () => {
-  // Selectors
   const topTabs = document.querySelectorAll("nav.tabs button");
   const bottomTabs = document.querySelectorAll("nav.bottom-nav i");
-  const sections = document.querySelectorAll("main section, .page"); // all SPA sections
+  const sections = document.querySelectorAll("main section, .page");
 
-  // Function to show section
   function showSection(id) {
     sections.forEach(sec => sec.classList.add("hidden"));
     const activeSec = document.getElementById(id);
     if (activeSec) activeSec.classList.remove("hidden");
   }
 
-  // Top nav toggle
   topTabs.forEach((tab, index) => {
     tab.addEventListener("click", () => {
-      // reset active state
       topTabs.forEach(btn => btn.classList.remove("active"));
       tab.classList.add("active");
-
-      // Decide which section to show
       if (index === 0) showSection("posts");
       if (index === 1) showSection("events");
       if (index === 2) showSection("photos");
     });
   });
 
-  // Bottom nav toggle
   bottomTabs.forEach((icon, index) => {
     icon.addEventListener("click", () => {
-      // reset active state
       bottomTabs.forEach(ic => ic.classList.remove("active"));
       icon.classList.add("active");
-
-      // Decide which section to show
-      if (index === 0) showSection("posts");
+      if (index === 0) showSection("home");
       if (index === 1) showSection("videos");
       if (index === 2) showSection("notifications");
       if (index === 3) showSection("profile");
     });
   });
 
-  // Default page
   showSection("posts");
 });
