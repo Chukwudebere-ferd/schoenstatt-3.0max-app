@@ -16,6 +16,7 @@
 }
 
 body {
+  width: 100%;
   background: var(--bg);
   color: #333;
   line-height: 1.4;
@@ -88,7 +89,7 @@ body {
 }
 
 .create-post button {
-  background: #205020;
+  background: var(--primary);
   color: white;
   border: none;
   padding: 10px;
@@ -98,7 +99,7 @@ body {
 
 /* ========= Posts ========= */
 .post {
-  background: #fff;
+  background: var(--white);
   margin-bottom: 15px;
   padding: 12px;
   border-radius: var(--radius);
@@ -148,9 +149,10 @@ body {
 /* ========= Post Actions ========= */
 .post-actions {
   display: flex;
+  align-items: center;
   gap: 20px;
   margin: 10px 0 4px;
-  font-size: 1.2em;
+  font-size: 20px;
 }
 
 .post-actions button {
@@ -167,7 +169,15 @@ body {
   margin-top: 10px;
   border-top: 1px solid #eee;
   padding-top: 8px;
+  color:#000;
 }
+.post-actions span {
+  font-size: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  margin-left: 10px;
+}
+
 
 .comments-list {
   display: flex;
@@ -177,7 +187,7 @@ body {
 }
 
 .comment {
-  background: #f8f9fa;
+  background: goldenrod;
   padding: 8px 10px;
   border-radius: var(--radius);
   font-size: 14px;
@@ -195,13 +205,13 @@ body {
 }
 
 .comment-text {
-  font-size: 14px;
-  color: #333;
+  font-size: 20px;
+  color: #fff;
 }
 
 .comment-form {
   display: flex;
-  gap: 6px;
+  gap: 9px;
   margin-top: 6px;
 }
 
@@ -211,6 +221,7 @@ body {
   border: 1px solid #ccc;
   border-radius: 20px;
   font-size: 14px;
+  outline: none;
 }
 
 .comment-submit {
@@ -226,7 +237,7 @@ body {
 .delete-comment-btn {
   background: none;
   border: none;
-  color: #888;
+  color: var(--primary);
   cursor: pointer;
   font-size: 13px;
   align-self: flex-end;
@@ -245,7 +256,8 @@ body {
 }
 
 .likes-box {
-  background: #fff;
+  background: var(--primary);
+  color: white;
   padding: 16px;
   border-radius: var(--radius);
   max-width: 320px;
@@ -270,7 +282,7 @@ body {
   top: 8px;
   font-size: 22px;
   cursor: pointer;
-  color: #555;
+  color: var(--accent);
 }
 
 /* ========= Modal (Image Viewer) ========= */

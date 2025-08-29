@@ -106,3 +106,23 @@ p a {
   background: #ddffdd;
   color: #2a5;
 }
+.name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.username {
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.verified-holder svg {
+  width: 16px;
+  height: 16px;
+}
+
+.post-time {
+  font-size: 12px;
+  color: #777;
+}

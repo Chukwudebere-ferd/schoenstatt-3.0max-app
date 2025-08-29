@@ -388,17 +388,34 @@ function renderPostElement(id, post) {
   header.className = "post-header";
 
   const left = document.createElement("div");
+  left.style.display = "flex";
+  left.style.alignItems = "center";
+  left.style.gap = "6px";
+
+  // username + verified wrapper
+  const nameWrap = document.createElement("div");
+  nameWrap.style.display = "flex";
+  nameWrap.style.alignItems = "center";
+  nameWrap.style.gap = "4px";
+
   const nameEl = document.createElement("strong");
   nameEl.className = "username";
   nameEl.textContent = post.username || "Loading...";
+
   const verifiedHolder = document.createElement("span");
   verifiedHolder.className = "verified-holder";
+
+  nameWrap.appendChild(nameEl);
+  nameWrap.appendChild(verifiedHolder);
+
   const timeSpan = document.createElement("span");
   timeSpan.className = "post-time";
+  timeSpan.style.marginLeft = "8px";
+  timeSpan.style.fontSize = "12px";
+  timeSpan.style.color = "#666";
   timeSpan.textContent = timeAgo(post.createdAt);
 
-  left.appendChild(nameEl);
-  left.appendChild(verifiedHolder);
+  left.appendChild(nameWrap);
   left.appendChild(timeSpan);
 
   const right = document.createElement("div");
@@ -481,17 +498,21 @@ function renderPostElement(id, post) {
     imagesWrap.style.marginTop = "8px";
     imagesWrap.style.gridTemplateColumns = imgs.length > 1 ? "1fr 1fr" : "1fr";
   }
-  imgs.forEach((src, i) => {
+  imgs.forEach((src) => {
     const imgEl = document.createElement("img");
     imgEl.src = src;
-    imgEl.alt = `post image ${i + 1}`;
+    imgEl.alt = `post image`;
     imgEl.className = "post-img";
+    imgEl.style.width = "100%";
+    imgEl.style.borderRadius = "8px";
+    imgEl.style.objectFit = "cover";
+    imgEl.style.cursor = "pointer";
     imgEl.addEventListener("click", () => {
       const modal = document.getElementById("imageModal");
       const modalImg = document.getElementById("modalImage");
       const downloadLink = document.getElementById("downloadImage");
       if (modal && modalImg) {
-        modal.style.display = "block";
+        modal.style.display = "flex";
         modalImg.src = src;
         if (downloadLink) downloadLink.href = src;
       }
@@ -503,21 +524,30 @@ function renderPostElement(id, post) {
   const actions = document.createElement("div");
   actions.className = "post-actions";
 
-  // like button
+  // Like button + count separately
   const likeBtn = document.createElement("button");
   likeBtn.className = "like-btn";
+  likeBtn.style.display = "flex";
+  likeBtn.style.alignItems = "center";
+  likeBtn.style.gap = "4px";
+
   const heart = document.createElement("i");
   const likedByArr = post.likedBy || [];
   const userHasLiked = auth.currentUser && likedByArr.includes(auth.currentUser.uid);
   heart.className = userHasLiked ? "fas fa-heart" : "far fa-heart";
   heart.style.color = userHasLiked ? "red" : "#333";
+  heart.style.fontSize = "18px";
+
   const likeCount = document.createElement("span");
-  likeCount.textContent = `${likedByArr.length || 0}`;
+  likeCount.textContent = likedByArr.length || 0;
+  likeCount.style.fontWeight = "bold";
+  likeCount.style.cursor = "pointer";
+
   likeBtn.appendChild(heart);
   likeBtn.appendChild(likeCount);
 
-  // ✅ click to like/unlike
-  likeBtn.addEventListener("click", async (e) => {
+  // click heart → like/unlike
+  heart.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!auth.currentUser) return alert("Sign in to like posts.");
     const postRef = doc(db, "posts", id);
@@ -534,8 +564,7 @@ function renderPostElement(id, post) {
     }
   });
 
-  // ✅ click on like count → show modal with users
-  likeCount.style.cursor = "pointer";
+  // click count → show modal
   likeCount.addEventListener("click", async () => {
     const postRef = doc(db, "posts", id);
     const fresh = await getDoc(postRef);
@@ -549,14 +578,14 @@ function renderPostElement(id, post) {
     close.className = "close-btn";
     close.textContent = "×";
     box.appendChild(close);
-    cur.forEach(async (uid) => {
+    for (const uid of cur) {
       const u = await fetchUserProfile(uid);
       const row = document.createElement("div");
       row.className = "like-user";
       row.textContent = u?.username || "User";
       if (u?.verified) row.appendChild(blueCheckSVG());
       box.appendChild(row);
-    });
+    }
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     close.addEventListener("click", () => overlay.remove());
@@ -659,6 +688,7 @@ function renderPostElement(id, post) {
         });
         div.appendChild(delBtn);
       }
+
       commentsList.appendChild(div);
       count++;
     });
@@ -684,6 +714,7 @@ function renderPostElement(id, post) {
 
   return article;
 }
+
 
 
 
