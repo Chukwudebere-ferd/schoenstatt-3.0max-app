@@ -229,6 +229,7 @@ body {
   font-weight: 600;
   font-size: 13px;
   margin-bottom: 2px;
+  color:  var(--primary);
 }
 
 .comment-text {

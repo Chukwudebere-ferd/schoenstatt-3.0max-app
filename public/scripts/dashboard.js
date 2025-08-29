@@ -598,6 +598,7 @@ function renderPostElement(id, post) {
     }
   });
 
+  // --- Likes modal with profile images ---
   likeCount.addEventListener("click", async () => {
     const postRef = doc(db, "posts", id);
     const fresh = await getDoc(postRef);
@@ -611,14 +612,33 @@ function renderPostElement(id, post) {
     close.className = "close-btn";
     close.textContent = "×";
     box.appendChild(close);
+
     for (const uid of cur) {
       const u = await fetchUserProfile(uid);
       const row = document.createElement("div");
       row.className = "like-user";
-      row.textContent = u?.username || "User";
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "6px";
+
+      const likerImg = document.createElement("img");
+      likerImg.src = "https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg";
+      likerImg.alt = "User Image";
+      likerImg.style.width = "24px";
+      likerImg.style.height = "24px";
+      likerImg.style.borderRadius = "50%";
+      likerImg.style.objectFit = "cover";
+      if (u?.profileImage) likerImg.src = u.profileImage;
+
+      const usernameSpan = document.createElement("span");
+      usernameSpan.textContent = u?.username || "User";
+
+      row.appendChild(likerImg);
+      row.appendChild(usernameSpan);
       if (u?.verified) row.appendChild(blueCheckSVG());
       box.appendChild(row);
     }
+
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     close.addEventListener("click", () => overlay.remove());
@@ -680,6 +700,7 @@ function renderPostElement(id, post) {
     }
   });
 
+  // --- live comments with profile images ---
   const commentsRef = collection(db, "posts", id, "comments");
   const commentsQuery = query(commentsRef, orderBy("createdAt", "asc"));
   onSnapshot(commentsQuery, (snapshot) => {
@@ -689,13 +710,33 @@ function renderPostElement(id, post) {
       const comment = c.data();
       const div = document.createElement("div");
       div.className = "comment";
+
       const header = document.createElement("div");
       header.className = "comment-header";
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+      header.style.gap = "6px";
+
+      const commenterImg = document.createElement("img");
+      commenterImg.src = "https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg";
+      commenterImg.alt = "Commenter Image";
+      commenterImg.style.width = "24px";
+      commenterImg.style.height = "24px";
+      commenterImg.style.borderRadius = "50%";
+      commenterImg.style.objectFit = "cover";
+
+      fetchUserProfile(comment.uid).then((u) => {
+        if (u?.profileImage) commenterImg.src = u.profileImage;
+      });
+
       const name = document.createElement("strong");
       name.textContent = comment.displayName || "Anonymous";
+
+      header.appendChild(commenterImg);
       header.appendChild(name);
       if (comment.verified) header.appendChild(blueCheckSVG());
       div.appendChild(header);
+
       const text = document.createElement("span");
       text.className = "comment-text";
       text.textContent = comment.text;
@@ -737,12 +778,13 @@ function renderPostElement(id, post) {
       nameEl.textContent = u.username || post.username || "User";
       verifiedHolder.innerHTML = "";
       if (u.verified) verifiedHolder.appendChild(blueCheckSVG());
-      if (u.profileImage) profileImg.src = u.profileImage; // update if user has custom image
+      if (u.profileImage) profileImg.src = u.profileImage;
     });
   }
 
   return article;
 }
+
 
 
 
