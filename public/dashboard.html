@@ -24,18 +24,23 @@
   <section class="create-post">
     <div class="create-post">
   <input id="postText" type="text" placeholder="What's on your mind?" />
-  <input id="postImages" type="file" accept="image/*" multiple hidden />
   <button id="addImage"><i class="fas fa-image"></i></button>
   <button id="submitPost" class="add-post"><i class="fas fa-plus"></i></button>
 </div>
   </section>
+<!-- Image Viewer -->
+<div id="imageModal" class="modal" style="display:none;">
+  <span id="closeModal">&times;</span>
+  <img id="modalImage" src="">
+  <a id="downloadImage" download><i class="fa fa-download"></i></a>
+</div>
 
   <main>
   <section id="posts">Posts feed...</section>
   <section id="events" class="hidden">Events feed...</section>
   <section id="photos" class="hidden">Photos gallery...</section>
 
-  <section id="home" class="hidden">Home page...</section>
+  <section id="home" class="hidden"></section>
   <section id="videos" class="hidden">Videos page...</section>
   <section id="notifications" class="hidden">Notifications...</section>
   <section id="profile" class="hidden">User profile...</section>

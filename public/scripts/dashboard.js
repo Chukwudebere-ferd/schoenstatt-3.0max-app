@@ -11,7 +11,9 @@ import {
   doc,
   updateDoc,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  getDoc,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import {
   getAuth,
@@ -150,8 +152,10 @@ function renderPreviews() {
 /* ========== Auth state ========== */
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
-  // if user exists and has displayName, that's perfect.
-  // If no displayName, we DO NOT auto-fall back to email — posting will require a displayName (we prompt).
+  if (!user) {
+    window.location.href = "index.html";
+    return;
+  }
 });
 
 /* ========== File picker handling ========== */
@@ -293,8 +297,7 @@ function timeAgo(ts) {
   return d.toLocaleString();
 }
 
-/* ========== Render a post DOM element ========= */
-function renderPostElement(id, post) {
+async function renderPostElement(id, post) {
   const article = document.createElement("article");
   article.className = "post";
   article.id = `post-${id}`;
@@ -302,8 +305,34 @@ function renderPostElement(id, post) {
   // header
   const header = document.createElement("div");
   header.className = "post-header";
+
+  // fetch user info (username + verified)
+  let username = post.username || "Unknown";
+  let verified = false;
+  if (post.uid) {
+    try {
+      const userDoc = await getDoc(doc(db, "users", post.uid));
+      if (userDoc.exists()) {
+        const u = userDoc.data();
+        username = u.username || username;
+        verified = !!u.verified;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch user info:", err);
+    }
+  }
+
   const name = document.createElement("strong");
-  name.textContent = post.username || "Unknown";
+  name.textContent = username;
+
+  if (verified) {
+    const badge = document.createElement("i");
+    badge.className = "fas fa-certificate";
+    badge.style.color = "gold";
+    badge.style.marginLeft = "4px";
+    name.appendChild(badge);
+  }
+
   const timeSpan = document.createElement("span");
   timeSpan.style.marginLeft = "8px";
   timeSpan.style.color = "#666";
@@ -313,192 +342,169 @@ function renderPostElement(id, post) {
   header.appendChild(name);
   header.appendChild(timeSpan);
 
+  // delete button (only if owner)
+  if (auth.currentUser && post.uid === auth.currentUser.uid) {
+    const delBtn = document.createElement("button");
+    delBtn.innerHTML = `<i class="fas fa-trash"></i>`;
+    delBtn.style.marginLeft = "auto";
+    delBtn.style.cursor = "pointer";
+    delBtn.addEventListener("click", async () => {
+      if (confirm("Delete this post?")) {
+        try {
+          await deleteDoc(doc(db, "posts", id));
+          article.remove();
+        } catch (err) {
+          console.error("Delete failed", err);
+        }
+      }
+    });
+    header.appendChild(delBtn);
+  }
+
   // text
   const textP = document.createElement("p");
   textP.textContent = post.text || "";
 
-  // images area
+  // images
   const imagesWrap = document.createElement("div");
   imagesWrap.className = "post-images";
-  imagesWrap.style.display = "grid";
-  imagesWrap.style.gap = "6px";
-
-  const imgs = post.images || [];
-  // simple responsive grid rules:
-  if (imgs.length === 1) {
-    imagesWrap.style.gridTemplateColumns = "1fr";
-  } else if (imgs.length === 2) {
-    imagesWrap.style.gridTemplateColumns = "1fr 1fr";
-  } else if (imgs.length === 3) {
-    imagesWrap.style.gridTemplateColumns = "1fr 1fr";
-  } else {
-    imagesWrap.style.gridTemplateColumns = "1fr 1fr";
-  }
-
-  imgs.forEach((src, i) => {
+  (post.images || []).forEach((src, i) => {
     const imgEl = document.createElement("img");
     imgEl.src = src;
     imgEl.alt = `post image ${i + 1}`;
     imgEl.style.width = "100%";
-    imgEl.style.display = "block";
     imgEl.style.borderRadius = "8px";
-    imgEl.style.objectFit = "cover";
-    // if multiple images you could make them smaller; keep simple for now
+    imgEl.style.cursor = "pointer";
+
+    imgEl.addEventListener("click", () => {
+      document.getElementById("imageModal").style.display = "block";
+      document.getElementById("modalImage").src = src;
+      document.getElementById("downloadImage").href = src;
+    });
+
     imagesWrap.appendChild(imgEl);
   });
-
-  // if more than 1 image, show small indicator on first
-  if (imgs.length > 1) {
-    const ind = document.createElement("div");
-    ind.className = "image-count-indicator";
-    ind.textContent = `1/${imgs.length}`;
-    ind.style.position = "absolute";
-    // We will wrap imagesWrap in a relative container
-    const relWrap = document.createElement("div");
-    relWrap.style.position = "relative";
-    relWrap.appendChild(imagesWrap);
-    ind.style.right = "10px";
-    ind.style.bottom = "10px";
-    ind.style.background = "rgba(0,0,0,0.6)";
-    ind.style.color = "#fff";
-    ind.style.padding = "4px 8px";
-    ind.style.borderRadius = "10px";
-    relWrap.appendChild(ind);
-    // append relWrap instead of imagesWrap
-    imagesWrap.style.marginTop = "8px";
-    // push relWrap as images container
-    // (replace imagesWrap with relWrap below)
-    // assemble
-    article.appendChild(header);
-    article.appendChild(textP);
-    article.appendChild(relWrap);
-  } else {
-    article.appendChild(header);
-    article.appendChild(textP);
-    article.appendChild(imagesWrap);
-  }
 
   // actions
   const actions = document.createElement("div");
   actions.className = "post-actions";
-  actions.style.display = "flex";
-  actions.style.gap = "12px";
-  actions.style.marginTop = "8px";
 
-  // Like button (uses likedBy array)
+  // Like button
   const likeBtn = document.createElement("button");
-  likeBtn.className = "like-btn";
-  likeBtn.style.cursor = "pointer";
+  likeBtn.style.display = "flex";
+  likeBtn.style.alignItems = "center";
+  likeBtn.style.gap = "4px";
+
   const heart = document.createElement("i");
   const likedBy = post.likedBy || [];
-  const isLiked = currentUser && likedBy.includes(currentUser.uid);
+  const isLiked = auth.currentUser && likedBy.includes(auth.currentUser.uid);
   heart.className = isLiked ? "fas fa-heart" : "far fa-heart";
   heart.style.color = isLiked ? "red" : "#333";
-  likeBtn.appendChild(heart);
 
   const likeCount = document.createElement("span");
-  likeCount.textContent = ` ${likedBy.length || 0}`;
+  likeCount.textContent = likedBy.length;
+
+  likeBtn.appendChild(heart);
   likeBtn.appendChild(likeCount);
 
-  likeBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (!auth.currentUser) {
-      alert("Sign in to like posts.");
-      return;
-    }
+  likeBtn.addEventListener("click", async () => {
+    if (!auth.currentUser) return alert("Sign in to like posts.");
     const postRef = doc(db, "posts", id);
-    try {
-      if ((post.likedBy || []).includes(auth.currentUser.uid)) {
-        await updateDoc(postRef, { likedBy: arrayRemove(auth.currentUser.uid) });
-      } else {
-        await updateDoc(postRef, { likedBy: arrayUnion(auth.currentUser.uid) });
-      }
-    } catch (err) {
-      console.error("Like update failed:", err);
-    }
-  });
-
-  // Comment button (toggle a simple comment input)
-  const commentBtn = document.createElement("button");
-  commentBtn.className = "comment-btn";
-  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${ (post.comments || []).length || 0 }`;
-  commentBtn.style.cursor = "pointer";
-
-  // Share button
-  const shareBtn = document.createElement("button");
-  shareBtn.className = "share-btn";
-  shareBtn.innerHTML = `<i class="fas fa-share"></i>`;
-  shareBtn.style.cursor = "pointer";
-  shareBtn.addEventListener("click", async () => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}#post-${id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: post.username || "Post", text: post.text || "", url: shareUrl });
-      } catch (err) {
-        // user dismissed or error
-      }
+    if (isLiked) {
+      await updateDoc(postRef, { likedBy: arrayRemove(auth.currentUser.uid) });
     } else {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        alert("Post link copied to clipboard!");
-      } catch {
-        prompt("Copy the post link:", shareUrl);
-      }
+      await updateDoc(postRef, { likedBy: arrayUnion(auth.currentUser.uid) });
     }
   });
 
-  actions.appendChild(likeBtn);
-  actions.appendChild(commentBtn);
-  actions.appendChild(shareBtn);
+  // show likers
+  likeCount.style.cursor = "pointer";
+  likeCount.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (!likedBy.length) return alert("No likes yet.");
+    let usersList = [];
+    for (const uid of likedBy) {
+      const userDoc = await getDoc(doc(db, "users", uid));
+      if (userDoc.exists()) {
+        const u = userDoc.data();
+        usersList.push(`${u.username}${u.verified ? " ✅" : ""}`);
+      }
+    }
+    alert("Liked by:\n" + usersList.join("\n"));
+  });
 
-  article.appendChild(actions);
+  // Comments
+  const commentBtn = document.createElement("button");
+  commentBtn.innerHTML = `<i class="far fa-comment"></i> ${(post.comments || []).length}`;
 
-  // comment area (hidden)
   const commentArea = document.createElement("div");
   commentArea.style.display = "none";
   commentArea.style.marginTop = "8px";
+
+  const commentList = document.createElement("div");
+  (post.comments || []).forEach(c => {
+    const cEl = document.createElement("p");
+    cEl.style.fontSize = "14px";
+    cEl.innerHTML = `<strong>${c.username}${c.verified ? " <i class='fas fa-certificate' style='color:gold;'></i>" : ""}:</strong> ${c.text}`;
+    commentList.appendChild(cEl);
+  });
+
   const commentInput = document.createElement("input");
   commentInput.type = "text";
   commentInput.placeholder = "Write a comment...";
-  commentInput.style.width = "80%";
-  const commentSend = document.createElement("button");
-  commentSend.innerText = "Send";
-  commentSend.style.marginLeft = "8px";
-  commentSend.addEventListener("click", async () => {
-    const txt = (commentInput.value || "").trim();
+
+  const sendBtn = document.createElement("button");
+  sendBtn.textContent = "Send";
+  sendBtn.addEventListener("click", async () => {
+    const txt = commentInput.value.trim();
     if (!txt) return;
-    if (!auth.currentUser) { alert("Sign in to comment."); return; }
-    const postRef = doc(db, "posts", id);
-    try {
-      await updateDoc(postRef, { comments: arrayUnion({
+    if (!auth.currentUser) return alert("Sign in to comment.");
+
+    const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const verified = userDoc.exists() ? !!userDoc.data().verified : false;
+
+    await updateDoc(doc(db, "posts", id), {
+      comments: arrayUnion({
         uid: auth.currentUser.uid,
         username: auth.currentUser.displayName || "Anonymous",
+        verified,
         text: txt,
         createdAt: serverTimestamp()
-      })});
-      commentInput.value = "";
-      // commentArea will refresh via onSnapshot re-render
-    } catch (err) {
-      console.error("Failed to add comment", err);
-    }
+      })
+    });
+    commentInput.value = "";
   });
 
+  commentArea.appendChild(commentList);
   commentArea.appendChild(commentInput);
-  commentArea.appendChild(commentSend);
-  article.appendChild(commentArea);
+  commentArea.appendChild(sendBtn);
 
   commentBtn.addEventListener("click", () => {
     commentArea.style.display = commentArea.style.display === "none" ? "block" : "none";
   });
 
-  // return article
+  actions.appendChild(likeBtn);
+  actions.appendChild(commentBtn);
+
+  // assemble
+  article.appendChild(header);
+  article.appendChild(textP);
+  article.appendChild(imagesWrap);
+  article.appendChild(actions);
+  article.appendChild(commentArea);
+
   return article;
 }
+
+// close modal handler
+document.getElementById("closeModal").addEventListener("click", () => {
+  document.getElementById("imageModal").style.display = "none";
+});
+
 
 /* ========== initial button state ========== */
 setAddButtonState(false);
 renderPreviews();
-
 
 
 // nav
@@ -538,7 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
       icon.classList.add("active");
 
       // Decide which section to show
-      if (index === 0) showSection("home");
+      if (index === 0) showSection("posts");
       if (index === 1) showSection("videos");
       if (index === 2) showSection("notifications");
       if (index === 3) showSection("profile");
