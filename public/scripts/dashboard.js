@@ -862,186 +862,89 @@ mainTabs.forEach(tab => {
 });
 
 /* ========== EVENTS / ANNOUNCEMENTS ========== */
+/* ========== EVENTS / ANNOUNCEMENTS ========== */
 const eventsContainer = document.getElementById("eventsContainer");
 const createEventContainer = document.getElementById("createEventContainer"); 
-const createEventBtn = createEventContainer.querySelector(".submit-event");
-const eventTabBtns = document.querySelectorAll(".event-tab-btn");
-let currentEventTab = "upcoming";
-
-// ====== GLOBAL USER ======
-if (typeof currentUser === "undefined") var currentUser = null;
+const createEventBtn = createEventContainer?.querySelector(".submit-event");
 let isAdmin = false;
 
-// ====== AUTH STATE LISTENER ======
+/* === Check role after auth === */
 onAuthStateChanged(auth, async (user) => {
-  currentUser = user;
-
-  // Check admin
   if (user) {
-    const userSnap = await getDoc(doc(db, "users", user.uid));
-    isAdmin = userSnap.data()?.admin || false;
-
-    if (isAdmin) {
-      // show button instead of the form
-      createEventContainer.classList.add("hidden");
-      const showFormBtn = document.createElement("button");
-      showFormBtn.textContent = "Create Event";
-      showFormBtn.className = "show-event-form-btn";
-      createEventContainer.parentNode.insertBefore(showFormBtn, createEventContainer);
-      showFormBtn.addEventListener("click", () => {
-        createEventContainer.classList.toggle("hidden");
-      });
+    const profile = await fetchUserProfile(user.uid);
+    isAdmin = profile?.role === "admin";
+    if (createEventContainer) {
+      createEventContainer.style.display = isAdmin ? "block" : "none";
     }
+  } else {
+    isAdmin = false;
+    if (createEventContainer) createEventContainer.style.display = "none";
   }
-
-  loadEvents(currentEventTab);
 });
 
-// ====== EVENT SUB-TABS ======
-eventTabBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
-    eventTabBtns.forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    currentEventTab = btn.dataset.tab;
-    loadEvents(currentEventTab);
-  });
-});
-
-// ====== CREATE EVENT ======
+/* === Submit Event (admin only) === */
 if (createEventBtn) {
-  const titleInput = createEventContainer.querySelector(".event-title");
-  const dateInput = createEventContainer.querySelector(".event-date");
-  const fileInput = createEventContainer.querySelector(".event-image");
-  
-createEventContainer.style.display = "none";
-toggleEventFormBtn.style.display = "none";
-
-// Wait for auth state (you already do this globally for posts)
-if (currentUser) {
-  const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-  if (userDoc.exists()) {
-    const data = userDoc.data();
-    if (data.role === "admin") {
-      toggleEventFormBtn.classList.remove("hidden");
-      toggleEventFormBtn.addEventListener("click", toggleEventForm);
-    }
-  }
-}
-
-  createEventBtn.addEventListener("click", async () => {
-    if (!currentUser || !isAdmin) return alert("Only admins can create events.");
-
+  createEventBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return alert("Only admins can create events.");
+    const titleInput = createEventContainer.querySelector("input[name='title']");
+    const descInput = createEventContainer.querySelector("textarea[name='description']");
     const title = titleInput.value.trim();
-    const date = new Date(dateInput.value);
-    const file = fileInput.files[0];
-
-    if (!title) return alert("Title required");
-    if (isNaN(date)) return alert("Valid date required");
-
-    createEventBtn.disabled = true;
-    createEventBtn.textContent = "Posting...";
-
+    const desc = descInput.value.trim();
+    if (!title) return alert("Event needs a title.");
     try {
-      let imageUrl = "https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg";
-      if (file) {
-        const fd = new FormData();
-        fd.append("image", file);
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
-        const json = await res.json();
-        if (json?.success) imageUrl = json.data.url;
-      }
-
       await addDoc(collection(db, "events"), {
         title,
-        date,
-        image: imageUrl,
-        likes: [],
+        description: desc,
         createdAt: serverTimestamp(),
+        uid: auth.currentUser.uid
       });
-
       titleInput.value = "";
-      dateInput.value = "";
-      fileInput.value = "";
-
-      loadEvents(currentEventTab);
+      descInput.value = "";
     } catch (err) {
-      console.error(err);
-      alert("Failed to create event");
-    } finally {
-      createEventBtn.disabled = false;
-      createEventBtn.textContent = "Create Event";
+      console.error("Event creation failed:", err);
     }
   });
 }
 
-// ====== LOAD EVENTS ======
-async function loadEvents(type = "upcoming") {
-  if (!eventsContainer) return;
-  eventsContainer.innerHTML = "Loading...";
-
-  const now = new Date();
-  const q = query(collection(db, "events"), orderBy("date", "asc"));
-  const snapshot = await getDocs(q);
-
+/* === Render Events in real-time === */
+const eventsQuery = query(collection(db, "events"), orderBy("createdAt", "desc"));
+onSnapshot(eventsQuery, (snapshot) => {
   eventsContainer.innerHTML = "";
-
   snapshot.forEach((docSnap) => {
-    const event = docSnap.data();
-    const eventDate = event.date.toDate ? event.date.toDate() : new Date(event.date);
-
-    const isUpcoming = eventDate >= now;
-    const isPast = eventDate < now;
-
-    if ((type === "upcoming" && isUpcoming) || (type === "past" && isPast)) {
-      const card = document.createElement("div");
-      card.className = "event-card";
-      card.innerHTML = `
-        <img src="${event.image}" alt="${event.title}">
-        <div class="event-info">
-          <h3>${event.title}</h3>
-          <p>${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
-          <button class="like-btn">Like (${event.likes?.length || 0})</button>
-        </div>
-      `;
-
-      // Like button
-      const likeBtn = card.querySelector(".like-btn");
-      likeBtn.addEventListener("click", async () => {
-        if (!currentUser) return alert("Sign in to like events.");
-        const eventRef = doc(db, "events", docSnap.id);
-        const curLikes = event.likes || [];
-        if (curLikes.includes(currentUser.uid)) {
-          await updateDoc(eventRef, { likes: arrayRemove(currentUser.uid) });
-        } else {
-          await updateDoc(eventRef, { likes: arrayUnion(currentUser.uid) });
-        }
-        loadEvents(type);
-      });
-
-      // Admin delete button
-      if (isAdmin) {
-        const delBtn = document.createElement("button");
-        delBtn.textContent = "Delete";
-        delBtn.className = "delete-btn";
-        delBtn.addEventListener("click", async () => {
-          if (!confirm("Delete this event?")) return;
-          try {
-            await deleteDoc(doc(db, "events", docSnap.id));
-            loadEvents(type);
-          } catch (err) {
-            console.error(err);
-            alert("Delete failed");
-          }
-        });
-        card.querySelector(".event-info").appendChild(delBtn);
-      }
-
-      eventsContainer.appendChild(card);
-    }
+    const data = docSnap.data();
+    const id = docSnap.id;
+    eventsContainer.appendChild(renderEventElement(id, data));
   });
+});
+
+/* === Render single Event === */
+function renderEventElement(id, event) {
+  const div = document.createElement("div");
+  div.className = "event";
+  div.innerHTML = `
+    <h3>${event.title}</h3>
+    <p>${event.description || ""}</p>
+    <small>${timeAgo(event.createdAt)}</small>
+  `;
+
+  if (isAdmin && event.uid === auth.currentUser?.uid) {
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", async () => {
+      if (!confirm("Delete this event?")) return;
+      try {
+        await deleteDoc(doc(db, "events", id));
+      } catch (err) {
+        console.error("Delete event failed:", err);
+      }
+    });
+    div.appendChild(delBtn);
+  }
+
+  return div;
 }
 
-// Optional: auto-refresh every minute
 setInterval(() => {
   loadEvents(currentEventTab);
 }, 60000);
@@ -1216,6 +1119,7 @@ async function renderPhotoAlbums() {
     photoFolders.innerHTML = "<p>Error loading photos.</p>";
   }
 }
+
 
 
 
