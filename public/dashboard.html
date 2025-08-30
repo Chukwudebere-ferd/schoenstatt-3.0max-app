@@ -8,10 +8,12 @@
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles/events.css">
+  <link rel="stylesheet" href="./styles/photos.css">
 </head>
 <body>
   <header class="topbar">
-  <img src="https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg" alt="Schoenstatt Logo" class="logo">
+  <img src="https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg" alt="Logo" class="logo">
   <h1>SCHOENSTATT <span>3.0max</span></h1>
 
   <div class="search-container">
@@ -45,8 +47,30 @@
 </div>
 
   <main>
-  <section id="posts">Posts feed...</section>
-  <section id="events" class="hidden">Events feed...</section>
+  <section id="posts">Posts feed loading...</section>
+<section id="events" class="hidden">
+  <div id="eventsSection">
+  <!-- Tab buttons -->
+  <div class="event-tabs">
+    <button class="event-tab-btn active" data-tab="upcoming">Upcoming</button>
+    <button class="event-tab-btn" data-tab="past">Past</button>
+  </div>
+
+  <!-- Admin create input (hidden by default) -->
+  <div id="createEventContainer" class="hidden">
+    <input type="text" placeholder="Event Title" class="event-title">
+    <input type="date" class="event-date">
+    <input type="file" class="event-image">
+    <button class="submit-event">Create Event</button>
+  </div>
+
+  <!-- Events display -->
+  <div id="eventsContainer">Loading events...</div>
+</div>
+
+</section>
+
+
   <section id="photos" class="hidden">Photos gallery...</section>
 
   <section id="home" class="hidden"></section>
@@ -64,5 +88,6 @@
   </nav>
 
   <script type="module"  src="./scripts/dashboard.js"></script>
+
 </body>
 </html>

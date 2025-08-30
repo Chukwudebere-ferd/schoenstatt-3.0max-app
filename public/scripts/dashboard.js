@@ -13,6 +13,7 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
+  getDocs,
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import {
@@ -46,7 +47,7 @@ const postsSection = document.getElementById("posts");
 if (!postsSection) throw new Error("Missing #posts element in DOM");
 
 /* ========== STATE ========== */
-let currentUser = null;
+var currentUser = null;
 let currentUserProfile = null; // { username, verified } from users/{uid}
 let selectedFiles = [];
 let readyToPost = false;
@@ -838,6 +839,203 @@ function filterPosts(query) {
 }
 
 
+// events 
+/* ========== EVENTS / ANNOUNCEMENTS ========== */
+
+/* ========== MAIN TABS ========= */
+const mainTabs = document.querySelectorAll("nav.tabs > button");
+const sections = {
+  Posts: document.getElementById("posts"),
+  Events: document.getElementById("events"),
+  Photos: document.getElementById("photos")
+};
+
+// Show the selected main tab, hide others
+mainTabs.forEach(tab => {
+  tab.addEventListener("click", () => {
+    mainTabs.forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+
+    Object.values(sections).forEach(sec => sec.classList.add("hidden"));
+    const sectionName = tab.textContent.trim();
+    if (sections[sectionName]) sections[sectionName].classList.remove("hidden");
+  });
+});
+
+/* ========== EVENTS / ANNOUNCEMENTS ========== */
+/* ========== EVENTS / ANNOUNCEMENTS ========== */
+const eventsContainer = document.getElementById("eventsContainer");
+const createEventContainer = document.getElementById("createEventContainer"); 
+const createEventBtn = createEventContainer.querySelector(".submit-event");
+const eventTabBtns = document.querySelectorAll(".event-tab-btn");
+let currentEventTab = "upcoming";
+
+// ====== GLOBAL USER ======
+if (typeof currentUser === "undefined") var currentUser = null;
+let isAdmin = false;
+
+// ====== AUTH STATE LISTENER ======
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+
+  // Check admin
+  if (user) {
+    const userSnap = await getDoc(doc(db, "users", user.uid));
+    isAdmin = userSnap.data()?.admin || false;
+
+    if (isAdmin) {
+      // show button instead of the form
+      createEventContainer.classList.add("hidden");
+      const showFormBtn = document.createElement("button");
+      showFormBtn.textContent = "Create Event";
+      showFormBtn.className = "show-event-form-btn";
+      createEventContainer.parentNode.insertBefore(showFormBtn, createEventContainer);
+      showFormBtn.addEventListener("click", () => {
+        createEventContainer.classList.toggle("hidden");
+      });
+    }
+  }
+
+  loadEvents(currentEventTab);
+});
+
+// ====== EVENT SUB-TABS ======
+eventTabBtns.forEach(btn => {
+  btn.addEventListener("click", () => {
+    eventTabBtns.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentEventTab = btn.dataset.tab;
+    loadEvents(currentEventTab);
+  });
+});
+
+// ====== CREATE EVENT ======
+if (createEventBtn) {
+  const titleInput = createEventContainer.querySelector(".event-title");
+  const dateInput = createEventContainer.querySelector(".event-date");
+  const fileInput = createEventContainer.querySelector(".event-image");
+
+  createEventBtn.addEventListener("click", async () => {
+    if (!currentUser || !isAdmin) return alert("Only admins can create events.");
+
+    const title = titleInput.value.trim();
+    const date = new Date(dateInput.value);
+    const file = fileInput.files[0];
+
+    if (!title) return alert("Title required");
+    if (isNaN(date)) return alert("Valid date required");
+
+    createEventBtn.disabled = true;
+    createEventBtn.textContent = "Posting...";
+
+    try {
+      let imageUrl = "https://i.postimg.cc/3wrJzs72/File-Schoenstatt-logo-svg-Wikipedia.jpg";
+      if (file) {
+        const fd = new FormData();
+        fd.append("image", file);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
+        const json = await res.json();
+        if (json?.success) imageUrl = json.data.url;
+      }
+
+      await addDoc(collection(db, "events"), {
+        title,
+        date,
+        image: imageUrl,
+        likes: [],
+        createdAt: serverTimestamp(),
+      });
+
+      titleInput.value = "";
+      dateInput.value = "";
+      fileInput.value = "";
+
+      loadEvents(currentEventTab);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create event");
+    } finally {
+      createEventBtn.disabled = false;
+      createEventBtn.textContent = "Create Event";
+    }
+  });
+}
+
+// ====== LOAD EVENTS ======
+async function loadEvents(type = "upcoming") {
+  if (!eventsContainer) return;
+  eventsContainer.innerHTML = "Loading...";
+
+  const now = new Date();
+  const q = query(collection(db, "events"), orderBy("date", "asc"));
+  const snapshot = await getDocs(q);
+
+  eventsContainer.innerHTML = "";
+
+  snapshot.forEach((docSnap) => {
+    const event = docSnap.data();
+    const eventDate = event.date.toDate ? event.date.toDate() : new Date(event.date);
+
+    const isUpcoming = eventDate >= now;
+    const isPast = eventDate < now;
+
+    if ((type === "upcoming" && isUpcoming) || (type === "past" && isPast)) {
+      const card = document.createElement("div");
+      card.className = "event-card";
+      card.innerHTML = `
+        <img src="${event.image}" alt="${event.title}">
+        <div class="event-info">
+          <h3>${event.title}</h3>
+          <p>${eventDate.toLocaleDateString()} at ${eventDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+          <button class="like-btn">Like (${event.likes?.length || 0})</button>
+        </div>
+      `;
+
+      // Like button
+      const likeBtn = card.querySelector(".like-btn");
+      likeBtn.addEventListener("click", async () => {
+        if (!currentUser) return alert("Sign in to like events.");
+        const eventRef = doc(db, "events", docSnap.id);
+        const curLikes = event.likes || [];
+        if (curLikes.includes(currentUser.uid)) {
+          await updateDoc(eventRef, { likes: arrayRemove(currentUser.uid) });
+        } else {
+          await updateDoc(eventRef, { likes: arrayUnion(currentUser.uid) });
+        }
+        loadEvents(type);
+      });
+
+      // Admin delete button
+      if (isAdmin) {
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "Delete";
+        delBtn.className = "delete-btn";
+        delBtn.addEventListener("click", async () => {
+          if (!confirm("Delete this event?")) return;
+          try {
+            await deleteDoc(doc(db, "events", docSnap.id));
+            loadEvents(type);
+          } catch (err) {
+            console.error(err);
+            alert("Delete failed");
+          }
+        });
+        card.querySelector(".event-info").appendChild(delBtn);
+      }
+
+      eventsContainer.appendChild(card);
+    }
+  });
+}
+
+// Optional: auto-refresh every minute
+setInterval(() => {
+  loadEvents(currentEventTab);
+}, 60000);
+
+
+
+// photo
 /* ========== NAV/SPA logic (unchanged) ========== */
 document.addEventListener("DOMContentLoaded", () => {
   const topTabs = document.querySelectorAll("nav.tabs button");
