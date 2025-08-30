@@ -1,195 +1,160 @@
-/* ========== EVENTS / ANNOUNCEMENTS STYLES ========== */
+/* ========== EVENTS SECTION ========== */
 #eventsSection {
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 0 10px;
+  padding: 15px;
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: 'Inter', sans-serif;
 }
 
-/* Tab buttons */
+/* Event Tabs */
 .event-tabs {
   display: flex;
-  justify-content: start;
   gap: 10px;
   margin-bottom: 15px;
 }
 
 .event-tab-btn {
-  padding: 8px 20px;
+  flex: 1;
+  padding: 8px 12px;
+  background: #f1f1f1;
   border: none;
-  background-color: #f0f0f0;
-  border-radius: 25px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.3s ease;
+  transition: 0.3s;
 }
 
 .event-tab-btn.active {
-  background-color: #1f43d5;
+  background: #1f43d5;
   color: #fff;
 }
 
-/* Create Event toggle button */
-.show-event-form-btn {
-  display: inline-block;
-  padding: 10px 20px;
-  margin-bottom: 10px;
-  background-color: #1f43d5;
+/* Admin Create Toggle Button */
+.admin-toggle-btn {
+  padding: 10px 15px;
+  background: #1f43d5;
   color: white;
-  font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  font-weight: 600;
+  transition: 0.3s;
 }
 
-.show-event-form-btn:hover {
-  background-color: #1634a1;
+.admin-toggle-btn:hover {
+  background: #1633a0;
 }
 
-/* Create Event form */
+/* Create Event Form */
 #createEventContainer {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
+  background: #f9f9f9;
   padding: 15px;
-  border-radius: 12px;
-  background-color: #f5f5f5;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-#createEventContainer input,
-#createEventContainer button {
-  padding: 10px;
-  font-size: 14px;
   border-radius: 8px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+#createEventContainer input[type="text"],
+#createEventContainer input[type="date"],
+#createEventContainer input[type="file"] {
+  padding: 8px 10px;
+  border-radius: 6px;
   border: 1px solid #ccc;
+  font-size: 14px;
 }
 
-#createEventContainer input:focus,
-#createEventContainer button:focus {
-  outline: none;
-  border-color: #1f43d5;
-}
-
-#createEventContainer button.submit-event {
-  background-color: #1f43d5;
-  color: white;
+#createEventContainer .submit-event {
+  padding: 10px;
+  background: #1f43d5;
+  color: #fff;
   border: none;
-  cursor: pointer;
+  border-radius: 6px;
   font-weight: 600;
-  transition: all 0.3s ease;
+  cursor: pointer;
+  transition: 0.3s;
 }
 
-#createEventContainer button.submit-event:hover {
-  background-color: #1634a1;
+#createEventContainer .submit-event:hover {
+  background: #1633a0;
 }
 
-/* Event cards */
+/* Event Cards */
 .event-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 20px;
-  padding: 10px;
-  border-radius: 12px;
-  background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.event-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  margin-bottom: 15px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: 0.3s;
 }
 
 .event-card img {
   width: 100%;
-  max-height: 200px;
+  height: 180px;
   object-fit: cover;
-  border-radius: 10px;
 }
 
 .event-info {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  padding: 10px 15px;
 }
 
 .event-info h3 {
+  margin: 0 0 5px;
   font-size: 18px;
-  margin: 0;
+  color: #1f43d5;
 }
 
 .event-info p {
+  margin: 0 0 10px;
   font-size: 14px;
   color: #555;
-  margin: 0;
 }
 
-/* Buttons inside card */
-.event-info .like-btn,
-.event-info .delete-btn {
-  padding: 6px 12px;
+.like-btn, .delete-btn {
+  padding: 6px 10px;
   border: none;
-  border-radius: 25px;
+  border-radius: 6px;
+  font-size: 14px;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.3s ease;
-  margin-top: 5px;
+  margin-right: 5px;
 }
 
-.event-info .like-btn {
-  background-color: #f0f0f0;
+.like-btn {
+  background: #e0e0e0;
   color: #333;
 }
 
-.event-info .like-btn:hover {
-  background-color: #1f43d5;
-  color: #fff;
+.like-btn:hover {
+  background: #d0d0d0;
 }
 
-.event-info .delete-btn {
-  background-color: #ff4d4f;
-  color: #fff;
-  margin-left: 8px;
+.delete-btn {
+  background: #ff4c4c;
+  color: white;
 }
 
-.event-info .delete-btn:hover {
-  background-color: #c70000;
+.delete-btn:hover {
+  background: #cc3a3a;
 }
 
 /* Responsive */
-@media screen and (min-width: 600px) {
+@media (min-width: 600px) {
   .event-card {
     flex-direction: row;
-    gap: 15px;
-  }
-
-  .event-card img {
-    width: 250px;
     height: 150px;
-    flex-shrink: 0;
   }
-
+  .event-card img {
+    width: 200px;
+    height: 100%;
+  }
   .event-info {
     flex: 1;
-  }
-
-  #createEventContainer {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-  }
-
-  #createEventContainer input[type="text"],
-  #createEventContainer input[type="date"],
-  #createEventContainer input[type="file"] {
-    flex: 1;
-  }
-
-  #createEventContainer button.submit-event {
-    flex-shrink: 0;
   }
 }

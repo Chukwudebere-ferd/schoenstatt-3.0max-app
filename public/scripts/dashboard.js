@@ -840,7 +840,6 @@ function filterPosts(query) {
 
 
 // events 
-/* ========== EVENTS / ANNOUNCEMENTS ========== */
 
 /* ========== MAIN TABS ========= */
 const mainTabs = document.querySelectorAll("nav.tabs > button");
@@ -862,7 +861,6 @@ mainTabs.forEach(tab => {
   });
 });
 
-/* ========== EVENTS / ANNOUNCEMENTS ========== */
 /* ========== EVENTS / ANNOUNCEMENTS ========== */
 const eventsContainer = document.getElementById("eventsContainer");
 const createEventContainer = document.getElementById("createEventContainer"); 
@@ -914,6 +912,21 @@ if (createEventBtn) {
   const titleInput = createEventContainer.querySelector(".event-title");
   const dateInput = createEventContainer.querySelector(".event-date");
   const fileInput = createEventContainer.querySelector(".event-image");
+  
+createEventContainer.style.display = "none";
+toggleEventFormBtn.style.display = "none";
+
+// Wait for auth state (you already do this globally for posts)
+if (currentUser) {
+  const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+  if (userDoc.exists()) {
+    const data = userDoc.data();
+    if (data.role === "admin") {
+      toggleEventFormBtn.classList.remove("hidden");
+      toggleEventFormBtn.addEventListener("click", toggleEventForm);
+    }
+  }
+}
 
   createEventBtn.addEventListener("click", async () => {
     if (!currentUser || !isAdmin) return alert("Only admins can create events.");
@@ -1035,7 +1048,184 @@ setInterval(() => {
 
 
 
-// photo
+
+// ==================== PHOTO ALBUMS (robust) ====================
+async function renderPhotoAlbums() {
+  const photoFolders = document.getElementById("photoFolders");
+  const folderModal = document.getElementById("photoFolderModal");
+  const closeFolderModal = document.getElementById("closeFolderModal");
+  const folderTitle = document.getElementById("folderModalTitle");
+  const folderImages = document.getElementById("folderImages");
+
+  // existing image viewer modal in your HTML
+  const imageModalEl = document.getElementById("imageModal");
+  const modalImage = document.getElementById("modalImage");
+  const downloadLink = document.getElementById("downloadImage");
+
+  if (!photoFolders) {
+    console.error("renderPhotoAlbums: #photoFolders not found");
+    return;
+  }
+
+  photoFolders.innerHTML = "<p>Loading photos...</p>";
+  if (folderImages) folderImages.innerHTML = "";
+
+  // helper: normalize various timestamp shapes -> JS Date
+  function toDate(val) {
+    if (!val) return null;
+    if (typeof val === "object" && typeof val.toDate === "function") return val.toDate(); // Firestore Timestamp
+    if (typeof val === "number") return new Date(val < 1e12 ? val * 1000 : val); // seconds -> ms
+    if (typeof val === "string") {
+      const parsed = Date.parse(val);
+      if (!isNaN(parsed)) return new Date(parsed);
+    }
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  try {
+    // Query posts (uses createdAt)
+    const postsRef = collection(db, "posts");
+    let q;
+    try {
+      q = query(postsRef, orderBy("createdAt", "desc"));
+    } catch (err) {
+      console.warn("renderPhotoAlbums: orderBy(createdAt) failed, falling back to un-ordered getDocs()", err);
+      q = postsRef;
+    }
+    const snapshot = await getDocs(q);
+    console.log("renderPhotoAlbums: posts snapshot.size =", snapshot.size);
+
+    // collect image items: { url, caption, dateObj }
+    const imagesList = [];
+
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      console.log("renderPhotoAlbums: post doc:", docSnap.id, data);
+
+      // prefer images array (your posts use `images`), fallback to single-image fields
+      let urls = [];
+      if (Array.isArray(data.images)) {
+        urls = data.images.filter(u => typeof u === "string" && u.trim());
+      } else {
+        const candidates = [
+          data.url, data.imageUrl, data.photoURL, data.downloadURL, data.image, data.fileUrl
+        ];
+        candidates.forEach(c => { if (typeof c === "string" && c.trim()) urls.push(c); });
+      }
+
+      if (!urls.length) return; // nothing to add from this post
+
+      // get post time (createdAt is typical)
+      const dateObj = toDate(data.createdAt || data.timestamp || data.time || data.date) || new Date();
+
+      // push all images from this post
+      urls.forEach(u => {
+        imagesList.push({
+          url: u,
+          caption: (data.text || data.caption || "").toString(),
+          dateObj,
+          postId: docSnap.id
+        });
+      });
+    });
+
+    if (!imagesList.length) {
+      photoFolders.innerHTML = "<p>No photos uploaded yet.</p>";
+      return;
+    }
+
+    // group by date string (daily albums)
+    const albums = {};
+    imagesList.forEach(img => {
+      const key = img.dateObj ? img.dateObj.toDateString() : "Unknown date";
+      if (!albums[key]) albums[key] = [];
+      albums[key].push(img);
+    });
+
+    // sort album keys by date desc (Unknown date last)
+    const albumKeys = Object.keys(albums).sort((a, b) => {
+      if (a === "Unknown date") return 1;
+      if (b === "Unknown date") return -1;
+      return new Date(b).getTime() - new Date(a).getTime();
+    });
+
+    // render folders
+    photoFolders.innerHTML = "";
+    albumKeys.forEach(dateKey => {
+      const imgs = albums[dateKey];
+
+      // sort images in the album newest -> oldest
+      imgs.sort((x, y) => (y.dateObj?.getTime() || 0) - (x.dateObj?.getTime() || 0));
+
+      const folderDiv = document.createElement("div");
+      folderDiv.className = "photo-folder";
+      folderDiv.innerHTML = `
+        <img src="${imgs[0].url}" alt="cover" class="folder-cover">
+        <div class="folder-info">
+          <h3>${dateKey}</h3>
+          <p>${imgs.length} photo(s)</p>
+        </div>
+      `;
+
+      // open album modal
+      folderDiv.addEventListener("click", () => {
+        folderTitle.textContent = `Photos from ${dateKey}`;
+        folderImages.innerHTML = "";
+
+        imgs.forEach(i => {
+          const wrap = document.createElement("div");
+          wrap.className = "folder-image";
+          wrap.innerHTML = `
+            <img src="${i.url}" alt="photo">
+            <p>${i.caption || "No caption"}</p>
+          `;
+          // clicking an image in album opens the main image modal (reuse existing imageModal)
+          const imgEl = wrap.querySelector("img");
+          imgEl.style.cursor = "pointer";
+          imgEl.addEventListener("click", (ev) => {
+            ev.stopPropagation(); // prevent closing album or other side effects
+            if (imageModalEl && modalImage) {
+              imageModalEl.style.display = "flex";
+              modalImage.src = i.url;
+              if (downloadLink) downloadLink.href = i.url;
+            }
+          });
+
+          folderImages.appendChild(wrap);
+        });
+
+        folderModal.classList.remove("hidden");
+      });
+
+      photoFolders.appendChild(folderDiv);
+    });
+
+    // close album modal (use onclick to avoid multiple listeners)
+    if (closeFolderModal) closeFolderModal.onclick = () => folderModal.classList.add("hidden");
+
+    // small UX: clicking outside imageModal closes it (you already had this handler earlier; keep or override)
+    if (imageModalEl) {
+      imageModalEl.onclick = (e) => { if (e.target === imageModalEl) imageModalEl.style.display = "none"; };
+    }
+
+    console.log("renderPhotoAlbums: rendered", albumKeys.length, "albums with", imagesList.length, "total images");
+
+  } catch (err) {
+    console.error("renderPhotoAlbums: unexpected error", err);
+    photoFolders.innerHTML = "<p>Error loading photos.</p>";
+  }
+}
+
+
+
+
+// When Photos tab is clicked
+document.querySelector("button:nth-child(3)").addEventListener("click", () => {
+  renderPhotoAlbums();
+});
+
+
 /* ========== NAV/SPA logic (unchanged) ========== */
 document.addEventListener("DOMContentLoaded", () => {
   const topTabs = document.querySelectorAll("nav.tabs button");

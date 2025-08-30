@@ -71,10 +71,29 @@
 </section>
 
 
-  <section id="photos" class="hidden">Photos gallery...</section>
+  <section id="photos" class="hidden">
+    <div class="photos-wrapper">
+  <!-- Folder Grid -->
+  <div id="photoFolders" class="photo-grid">
+    <!-- JS will inject photo folders here -->
+  </div>
+
+  <!-- Folder Modal (hidden by default) -->
+  <div id="photoFolderModal" class="folder-modal hidden">
+    <span id="closeFolderModal" class="close-folder">&times;</span>
+    <h2 id="folderModalTitle">Photos</h2>
+    <div id="folderImages" class="folder-images">
+      <!-- JS will inject images here -->
+    </div>
+  </div>
+</div>
+
+  </section>
 
   <section id="home" class="hidden"></section>
-  <section id="videos" class="hidden">Videos page...</section>
+  <section id="videos" class="hidden">
+      <div id="videosContainer"></div>
+  </section>
   <section id="notifications" class="hidden">Notifications...</section>
   <section id="profile" class="hidden">User profile...</section>
 </main>
@@ -82,7 +101,7 @@
 
   <nav class="bottom-nav">
     <i class="fas fa-home active"></i>
-    <i class="fas fa-play-circle"></i>
+    <i class="fas fa-globe"></i>
     <i class="fas fa-bell"></i>
     <i class="fas fa-user"></i>
   </nav>

@@ -1,29 +1,44 @@
+:root {
+  --primary: #0c2d6b;
+  --accent: #fdd835;
+  --bg: #f4f6fa;
+  --white: #fff;
+  --border: #ddd;
+  --muted: #666;
+  --radius: 8px;
+}
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 15px;
-  padding: 15px;
 }
 
 .photo-folder {
   cursor: pointer;
-  text-align: center;
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   border-radius: 8px;
   overflow: hidden;
-  background: #f9f9f9;
+  text-align: center;
+  background-color: var(--primary);
+  color: var(--white);
 }
 
-.folder-cover {
+.photo-folder img {
   width: 100%;
-  height: 150px;
+  height: 100px;
   object-fit: cover;
 }
 
-.folder-caption {
-  padding: 8px;
-  font-size: 0.9rem;
-  color: #333;
+.folder-info h3 {
+  margin: 5px 0 0 0;
+  font-size: 14px;
+}
+
+.folder-info p {
+  margin: 0 0 5px 0;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: bold;
 }
 
 .folder-modal {
@@ -32,17 +47,22 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.9);
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow-y: auto;
+  justify-content: flex-start;
   padding: 20px;
-  z-index: 9999;
+  overflow-y: auto;
+  z-index: 1000;
 }
 
-.close-folder {
-  font-size: 2rem;
+.folder-modal.hidden {
+  display: none;
+}
+
+.folder-modal .close-folder {
+  font-size: 30px;
   color: #fff;
   cursor: pointer;
   align-self: flex-end;
@@ -51,13 +71,21 @@
 .folder-images {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
-  width: 100%;
+  gap: 15px;
   margin-top: 20px;
+  width: 100%;
 }
 
-.folder-images img {
+.folder-image img {
   width: 100%;
-  border-radius: 6px;
+  height: 120px;
   object-fit: cover;
+  border-radius: 6px;
+}
+
+.folder-image p {
+  font-size: 12px;
+  color: #fff;
+  text-align: center;
+  margin-top: 3px;
 }
